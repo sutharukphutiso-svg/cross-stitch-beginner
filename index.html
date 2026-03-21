@@ -434,7 +434,7 @@ function loadFile(file){
 // ── SLIDER LABELS ─────────────────────────────────────────────────────────────
 function onSz(){var v=parseInt(document.getElementById('sz').value);document.getElementById('szv').textContent=v+' × '+v;}
 function onNc(){document.getElementById('ncv').textContent=document.getElementById('nc').value;}
-function onBg(){var v=parseInt(document.getElementById('bg').value);document.getElementById('bgv').textContent=v===0?'OFF':v;}
+function onBg(){document.getElementById('bgv').textContent=document.getElementById('bg').value;}
 
 // ── MEDIAN-CUT QUANTIZATION ───────────────────────────────────────────────────
 function medianCut(pixels,n){
@@ -469,25 +469,81 @@ function convertImage(){
   showProgress('Reading image pixels…');
   setTimeout(doConvert,40);
 }
+// BG mode state
+var bgMode='off'; var bgPickColor=[255,255,255];
+
+function setBgMode(mode){
+  bgMode=mode;
+  document.querySelectorAll('.bg-mode-btn').forEach(function(b){
+    b.style.background='rgba(255,255,255,.1)';b.style.color='rgba(255,255,255,.7)';b.style.borderColor='rgba(255,255,255,.2)';
+  });
+  var active=document.getElementById('bg-'+mode);
+  if(active){active.style.background='rgba(255,255,255,.28)';active.style.color='#fff';active.style.borderColor='rgba(255,255,255,.5)';}
+  document.getElementById('bg-pick-row').style.display=mode==='pick'?'flex':'none';
+  document.getElementById('bg-thresh-row').style.display=(mode==='auto'||mode==='white'||mode==='pick')?'block':'none';
+  var hints={off:'No background removal',auto:'Auto-detect BG from image corners',white:'Remove near-white pixels only',pick:'Remove pixels matching picked color'};
+  document.getElementById('bg-hint').textContent=hints[mode]||'';
+}
+function bgColorPick(){
+  var v=document.getElementById('bg-color-input').value;
+  document.getElementById('bg-color-preview').style.background=v;
+  var m=v.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if(m)bgPickColor=[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)];
+}
+function colorDist(r1,g1,b1,r2,g2,b2){return Math.sqrt(Math.pow(r1-r2,2)+Math.pow(g1-g2,2)+Math.pow(b1-b2,2));}
+function detectBgColor(px,w,h){
+  // Sample corners (top-left, top-right, bottom-left, bottom-right) 5x5 area
+  var samples=[];
+  var corners=[[0,0],[w-5,0],[0,h-5],[w-5,h-5],[Math.floor(w/2)-2,0],[0,Math.floor(h/2)-2]];
+  corners.forEach(function(c){
+    for(var dy=0;dy<4;dy++)for(var dx=0;dx<4;dx++){
+      var idx=((c[1]+dy)*w+(c[0]+dx))*4;
+      if(px[idx+3]>200)samples.push([px[idx],px[idx+1],px[idx+2]]);
+    }
+  });
+  if(!samples.length)return[255,255,255];
+  var sr=0,sg=0,sb=0;
+  samples.forEach(function(s){sr+=s[0];sg+=s[1];sb+=s[2];});
+  return[Math.round(sr/samples.length),Math.round(sg/samples.length),Math.round(sb/samples.length)];
+}
+function isBgPixel(r,g,b,a,bgR,bgG,bgB,tol){
+  if(a<30)return true;
+  return colorDist(r,g,b,bgR,bgG,bgB)<tol;
+}
+
 function doConvert(){
   var sz=parseInt(document.getElementById('sz').value);
   var nColors=parseInt(document.getElementById('nc').value);
-  var bgThresh=parseInt(document.getElementById('bg').value);
+  var tol=parseInt(document.getElementById('bg').value)||30;
+  // Draw full-res for BG detection, then sz for pattern
+  var ocFull=document.createElement('canvas');ocFull.width=refImg.width;ocFull.height=refImg.height;
+  var oxFull=ocFull.getContext('2d');oxFull.drawImage(refImg,0,0);
+  var fullData=oxFull.getImageData(0,0,refImg.width,refImg.height);
   var oc=document.createElement('canvas');oc.width=sz;oc.height=sz;
   var ox=oc.getContext('2d');ox.drawImage(refImg,0,0,sz,sz);
   var imgData=ox.getImageData(0,0,sz,sz);var px=imgData.data;
+
+  // Detect BG color
+  var bgR=255,bgG=255,bgB=255;
+  if(bgMode==='auto'){
+    var det=detectBgColor(fullData.data,refImg.width,refImg.height);
+    bgR=det[0];bgG=det[1];bgB=det[2];
+  } else if(bgMode==='white'){
+    bgR=255;bgG=255;bgB=255;
+  } else if(bgMode==='pick'){
+    bgR=bgPickColor[0];bgG=bgPickColor[1];bgB=bgPickColor[2];
+  }
+
   var pixels=[];
   for(var i=0;i<sz*sz;i++){
     var r=px[i*4],g=px[i*4+1],b=px[i*4+2],a=px[i*4+3];
     if(a<30)continue;
-    var bright=(r+g+b)/3;
-    var bgCut=255-bgThresh;
-    if(bgThresh>0&&bright>bgCut)continue;
+    if(bgMode!=='off'&&isBgPixel(r,g,b,a,bgR,bgG,bgB,tol))continue;
     pixels.push([r,g,b]);
   }
   showProgress('Quantizing colors to DMC palette…');
   setTimeout(function(){
-    var palRGB=medianCut(pixels.slice(),nColors);
+    var palRGB=medianCut(pixels.length?pixels.slice():[[128,128,128]],nColors);
     var dmcPal=palRGB.map(function(rgb){return nDMC(r2h(rgb[0],rgb[1],rgb[2])).hex;});
     dmcPal=dmcPal.filter(function(v,i,a){return a.indexOf(v)===i;});
     showProgress('Building stitch grid…');
@@ -497,9 +553,7 @@ function doConvert(){
       for(var i=0;i<sz*sz;i++){
         var r2=px[i*4],g2=px[i*4+1],b2=px[i*4+2],a2=px[i*4+3];
         if(a2<30)continue;
-        var bright2=(r2+g2+b2)/3;
-        var bgCut2=255-bgThresh;
-        if(bgThresh>0&&bright2>bgCut2)continue;
+        if(bgMode!=='off'&&isBgPixel(r2,g2,b2,a2,bgR,bgG,bgB,tol))continue;
         var row=Math.floor(i/sz),col=i%sz;
         grid[row][col]=nHex([r2,g2,b2],palette);
       }
