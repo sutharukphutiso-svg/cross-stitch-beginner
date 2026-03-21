@@ -88,6 +88,9 @@ input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
 #hl{max-height:55px;overflow-y:auto;font-size:11px;color:var(--muted)}
 #hl div{padding:1px 0;border-bottom:1px solid rgba(0,0,0,.05)}
 .sep{height:1px;background:var(--border);margin:7px 0}
+#color-panel{max-height:220px;overflow-y:auto;}
+#color-panel::-webkit-scrollbar{width:3px}
+#color-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 </style>
 </head>
 <body>
@@ -123,8 +126,8 @@ input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
         <input type="range" id="nc" min="5" max="20" value="14" step="1" oninput="onNc()">
       </div>
       <div class="ctrl">
-        <div class="cl"><span style="color:rgba(255,255,255,.8)">Remove light BG</span><span class="cv" id="bgv">220</span></div>
-        <input type="range" id="bg" min="0" max="255" value="220" step="5" oninput="onBg()">
+        <div class="cl"><span style="color:rgba(255,255,255,.8)">Remove BG</span><span class="cv" id="bgv">30</span></div>
+        <input type="range" id="bg" min="0" max="255" value="30" step="5" oninput="onBg()">
         <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px">0 = keep all · 255 = remove all light</div>
       </div>
       <button class="btn pr btn-full" id="cvt-btn" onclick="convertImage()" disabled style="margin-top:6px;font-weight:500;opacity:.6">▶ Convert to Pattern</button>
@@ -147,12 +150,12 @@ input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
     </div>
 
     <div class="sec">
-      <div class="sec-t">Palette <span id="pcnt" style="color:var(--text);font-weight:500">0</span></div>
-      <div class="sec-b">
-        <div class="pg" id="pgrid"></div>
-        <div class="btn-r">
-          <button class="btn" onclick="addCol()">+ Add</button>
-          <button class="btn dr" onclick="clearUnused()">Remove unused</button>
+      <div class="sec-t">Colors Used <span id="pcnt" style="color:var(--text);font-weight:500">0</span></div>
+      <div class="sec-b" style="padding:6px">
+        <div id="pgrid" style="display:none"></div><div id="color-panel"></div>
+        <div class="btn-r" style="margin-top:6px">
+          <button class="btn" onclick="addCol()" style="font-size:11px">+ Add color</button>
+          <button class="btn dr" onclick="clearUnused()" style="font-size:11px">Remove unused</button>
         </div>
       </div>
     </div>
@@ -431,7 +434,7 @@ function loadFile(file){
 // ── SLIDER LABELS ─────────────────────────────────────────────────────────────
 function onSz(){var v=parseInt(document.getElementById('sz').value);document.getElementById('szv').textContent=v+' × '+v;}
 function onNc(){document.getElementById('ncv').textContent=document.getElementById('nc').value;}
-function onBg(){document.getElementById('bgv').textContent=document.getElementById('bg').value;}
+function onBg(){var v=parseInt(document.getElementById('bg').value);document.getElementById('bgv').textContent=v===0?'OFF':v;}
 
 // ── MEDIAN-CUT QUANTIZATION ───────────────────────────────────────────────────
 function medianCut(pixels,n){
@@ -478,7 +481,8 @@ function doConvert(){
     var r=px[i*4],g=px[i*4+1],b=px[i*4+2],a=px[i*4+3];
     if(a<30)continue;
     var bright=(r+g+b)/3;
-    if(bgThresh>0&&bright>bgThresh)continue;
+    var bgCut=255-bgThresh;
+    if(bgThresh>0&&bright>bgCut)continue;
     pixels.push([r,g,b]);
   }
   showProgress('Quantizing colors to DMC palette…');
@@ -494,7 +498,8 @@ function doConvert(){
         var r2=px[i*4],g2=px[i*4+1],b2=px[i*4+2],a2=px[i*4+3];
         if(a2<30)continue;
         var bright2=(r2+g2+b2)/3;
-        if(bgThresh>0&&bright2>bgThresh)continue;
+        var bgCut2=255-bgThresh;
+        if(bgThresh>0&&bright2>bgCut2)continue;
         var row=Math.floor(i/sz),col=i%sz;
         grid[row][col]=nHex([r2,g2,b2],palette);
       }
@@ -627,15 +632,59 @@ function drawLine(x0,y0,x1,y1,ci){
 
 // ── PALETTE ───────────────────────────────────────────────────────────────────
 function updPal(){
-  var pg=document.getElementById('pgrid');pg.innerHTML='';
-  palette.forEach(function(h,i){
-    var d=document.createElement('div');d.className='sw'+(i===SI?' sel':'');d.style.background=h;d.title=h;
-    d.onclick=function(){SI=i;updPal();};
-    d.oncontextmenu=function(e){e.preventDefault();openCP(i,e.clientX,e.clientY);};
-    pg.appendChild(d);
-  });
-  var add=document.createElement('div');add.className='sw-add';add.textContent='+';add.onclick=addCol;pg.appendChild(add);
+  // legacy pgrid (hidden, used by export functions)
+  var pg=document.getElementById('pgrid');if(pg){pg.innerHTML='';
+    palette.forEach(function(h,i){var d=document.createElement('div');d.className='sw'+(i===SI?' sel':'');d.style.background=h;pg.appendChild(d);});
+  }
   document.getElementById('pcnt').textContent=palette.length;
+  updColorPanel();
+}
+function updColorPanel(){
+  var cnt=new Array(palette.length).fill(0);
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]>=0)cnt[grid[r][c]]++;
+  var panel=document.getElementById('color-panel');panel.innerHTML='';
+  palette.forEach(function(h,i){
+    var dmc=nDMC(h);
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:5px;padding:4px 3px;border-radius:5px;cursor:pointer;transition:background .1s;'+(i===SI?'background:rgba(90,122,90,.12)':'');
+    row.onmouseenter=function(){if(i!==SI)this.style.background='rgba(0,0,0,.04)';};
+    row.onmouseleave=function(){this.style.background=i===SI?'rgba(90,122,90,.12)':'';};
+
+    // Color swatch (click = select)
+    var sw=document.createElement('div');
+    sw.style.cssText='width:20px;height:20px;border-radius:4px;flex-shrink:0;border:2px solid '+(i===SI?'#3d5c3d':'rgba(0,0,0,.15)')+';background:'+h+';cursor:pointer;';
+    sw.title='Click to paint with this color';
+    sw.onclick=function(e){e.stopPropagation();SI=i;updColorPanel();};
+
+    // DMC info
+    var info=document.createElement('div');info.style.cssText='flex:1;min-width:0;';
+    info.innerHTML='<div style="font-size:11px;font-weight:500;color:#2a1f14;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">DMC '+dmc.num+'</div>'+
+      '<div style="font-size:9px;color:#8a7a6a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+dmc.name+'</div>';
+
+    // Stitch count
+    var ct=document.createElement('div');ct.style.cssText='font-size:10px;color:#8a7a6a;flex-shrink:0;min-width:28px;text-align:right;';
+    ct.textContent=cnt[i]||0;
+
+    // Edit button (pencil)
+    var edit=document.createElement('button');
+    edit.textContent='✎';edit.title='Change this color';
+    edit.style.cssText='border:none;background:none;cursor:pointer;font-size:13px;color:#8a7a6a;padding:2px 3px;border-radius:3px;flex-shrink:0;';
+    edit.onmouseenter=function(){this.style.color='#3d5c3d';this.style.background='rgba(90,122,90,.12)';};
+    edit.onmouseleave=function(){this.style.color='#8a7a6a';this.style.background='none';};
+    edit.onclick=function(e){e.stopPropagation();openCP(i,e.clientX,e.clientY);};
+
+    // Delete button (trash = erase all pixels of this color)
+    var del=document.createElement('button');
+    del.textContent='✕';del.title='Erase all stitches of this color';
+    del.style.cssText='border:none;background:none;cursor:pointer;font-size:11px;color:#8a7a6a;padding:2px 3px;border-radius:3px;flex-shrink:0;';
+    del.onmouseenter=function(){this.style.color='#c0392b';this.style.background='rgba(192,57,43,.1)';};
+    del.onmouseleave=function(){this.style.color='#8a7a6a';this.style.background='none';};
+    del.onclick=function(e){e.stopPropagation();eraseColorAll(i);};
+
+    row.appendChild(sw);row.appendChild(info);row.appendChild(ct);row.appendChild(edit);row.appendChild(del);
+    row.onclick=function(){SI=i;updColorPanel();};
+    panel.appendChild(row);
+  });
 }
 function updSt(){
   var ct=parseInt(document.getElementById('fab').value);
@@ -645,7 +694,8 @@ function updSt(){
   document.getElementById('sts').textContent=COLS+' × '+ROWS;
   if(hasPattern){var cnt=0;for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)cnt++;document.getElementById('stc').textContent=cnt.toLocaleString();}
 }
-function updDMC(){
+function updDMC(){updColorPanel();
+
   var dl=document.getElementById('dlist');dl.innerHTML='';
   var sorted=getDMCSorted();
   if(!sorted.length){dl.innerHTML='<div style="color:var(--muted);font-size:11px">No stitches yet</div>';return;}
@@ -662,6 +712,12 @@ function getDMCSorted(){
   return palette.map(function(h,i){return{hex:h,count:cnt[i],idx:i};}).filter(function(x){return x.count>0;}).sort(function(a,b){return b.count-a.count;});
 }
 function addCol(){palette.push('#888888');SI=palette.length-1;updPal();updDMC();openCP(SI,window.innerWidth/2,window.innerHeight/2);}
+function eraseColorAll(ci){
+  if(!confirm('Erase all stitches of this color?'))return;
+  pushHistSnap();
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]===ci)grid[r][c]=-1;
+  render();updDMC();updColorPanel();pushHist('Erased color '+ci);
+}
 function clearUnused(){
   var used=new Set();for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]>=0)used.add(grid[r][c]);
   var map={},newPal=[];palette.forEach(function(h,i){if(used.has(i)){map[i]=newPal.length;newPal.push(h);}});
