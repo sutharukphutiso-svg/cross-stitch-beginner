@@ -281,15 +281,14 @@ input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
     <span style="margin-left:auto">Color: <span id="stcol" style="display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;border:1px solid #ccc;margin-right:3px"></span><b id="sthex">--</b></span>
   </div>
 </div>
-</div>
 
-<!-- ── RIGHT PANEL ── -->
+<!-- ── RIGHT PANEL (inside #app) ── -->
 <div id="right-panel">
   <div id="rp-head">
     <span>🖼 Reference</span>
   </div>
   <div id="rp-body">
-    <div id="ref-placeholder">Upload an image first</div>
+    <div id="ref-placeholder" style="display:flex">Upload an image first</div>
     <img id="ref-preview" style="display:none">
     <div style="height:1px;background:var(--border);margin:8px 0"></div>
     <button class="rp-undo-btn" onclick="undo()" title="Ctrl+Z">
@@ -297,6 +296,7 @@ input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
     </button>
     <div style="margin-top:6px;font-size:10px;color:var(--muted);text-align:center">Ctrl+Z</div>
   </div>
+</div>
 </div>
 
 <!-- ── DMC PICKER MODAL ── -->
@@ -1136,6 +1136,16 @@ function xChart(){
   }
   var a=document.createElement('a');a.download='cross-stitch-chart.png';a.href=ec.toDataURL();a.click();
 }
+// ── LOAD jsPDF FROM CDN (lazy) ────────────────────────────────────────────────
+function loadJsPDF(cb){
+  if(window.jspdf&&window.jspdf.jsPDF){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  s.onload=function(){if(window.jspdf&&window.jspdf.jsPDF){cb();}else{alert('Could not load PDF library. Please check your internet connection.');}};
+  s.onerror=function(){alert('Failed to load PDF library (jsPDF). Please check your internet connection and try again.');};
+  document.head.appendChild(s);
+}
+
 function xPDF(mode,size){
   if(!palette.length||!grid.flat().some(function(v){return v>=0;}))return alert('Please convert an image first');
   loadJsPDF(function(){
