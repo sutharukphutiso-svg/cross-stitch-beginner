@@ -393,8 +393,37 @@ var area=document.getElementById('canvas-area');
 function h2r(h){var m=h.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:null;}
 function r2h(r,g,b){return'#'+[r,g,b].map(function(v){return Math.round(Math.min(255,Math.max(0,v))).toString(16).padStart(2,'0');}).join('');}
 function nRgb(px,pal){var b=0,bd=1e9;for(var i=0;i<pal.length;i++){var d=Math.pow(px[0]-pal[i][0],2)+Math.pow(px[1]-pal[i][1],2)+Math.pow(px[2]-pal[i][2],2);if(d<bd){bd=d;b=i;}}return b;}
-function nHex(px,pal){var b=0,bd=1e9;for(var i=0;i<pal.length;i++){var rgb=h2r(pal[i]);if(!rgb)continue;var d=Math.pow(px[0]-rgb[0],2)+Math.pow(px[1]-rgb[1],2)+Math.pow(px[2]-rgb[2],2);if(d<bd){bd=d;b=i;}}return b;}
-function nDMC(hex){var rgb=h2r(hex);if(!rgb)return{num:'--',name:'Unknown',hex:hex};var b=null,bd=1e9;for(var i=0;i<DMC.length;i++){var e=DMC[i];var d=Math.pow(rgb[0]-e[2],2)+Math.pow(rgb[1]-e[3],2)+Math.pow(rgb[2]-e[4],2);if(d<bd){bd=d;b={num:e[0],name:e[1],hex:r2h(e[2],e[3],e[4])};}}return b||{num:'--',name:'Unknown',hex:hex};}
+function nHex(px,pal){var lab1=rgb2lab(px[0],px[1],px[2]);var b=0,bd=1e9;for(var i=0;i<pal.length;i++){var rgb=h2r(pal[i]);if(!rgb)continue;var lab2=rgb2lab(rgb[0],rgb[1],rgb[2]);var d=labDist(lab1,lab2);if(d<bd){bd=d;b=i;}}return b;}
+// nDMC: match to nearest DMC using perceptual LAB distance
+function nDMC(hex){
+  var rgb=h2r(hex);
+  if(!rgb)return{num:'--',name:'Unknown',hex:hex};
+  var lab1=rgb2lab(rgb[0],rgb[1],rgb[2]);
+  var b=null,bd=1e9;
+  for(var i=0;i<DMC.length;i++){
+    var e=DMC[i];
+    var lab2=rgb2lab(e[2],e[3],e[4]);
+    var d=labDist(lab1,lab2);
+    if(d<bd){bd=d;b={num:e[0],name:e[1],hex:r2h(e[2],e[3],e[4])};}
+  }
+  return b||{num:'--',name:'Unknown',hex:hex};
+}
+// nDMCExclude: find nearest DMC not in exclusion set (for dedup)
+function nDMCExclude(hex, excludeHexSet){
+  var rgb=h2r(hex);
+  if(!rgb)return{num:'--',name:'Unknown',hex:hex};
+  var lab1=rgb2lab(rgb[0],rgb[1],rgb[2]);
+  var b=null,bd=1e9;
+  for(var i=0;i<DMC.length;i++){
+    var e=DMC[i];
+    var eh=r2h(e[2],e[3],e[4]);
+    if(excludeHexSet&&excludeHexSet[eh])continue;
+    var lab2=rgb2lab(e[2],e[3],e[4]);
+    var d=labDist(lab1,lab2);
+    if(d<bd){bd=d;b={num:e[0],name:e[1],hex:eh};}
+  }
+  return b||nDMC(hex);
+}
 function inB(c,r){return c>=0&&c<COLS&&r>=0&&r<ROWS;}
 function getCell(e){var rc=gc.getBoundingClientRect();var ds=Math.max(0.1,CELL*ZL);return[Math.floor((e.clientX-rc.left)/ds+VX),Math.floor((e.clientY-rc.top)/ds+VY)];}
 function showProgress(txt){var w=document.getElementById('progress-wrap');w.classList.add('show');document.getElementById('prog-txt').textContent=txt||'Processing…';}
@@ -436,9 +465,105 @@ function onSz(){var v=parseInt(document.getElementById('sz').value);document.get
 function onNc(){document.getElementById('ncv').textContent=document.getElementById('nc').value;}
 function onBg(){document.getElementById('bgv').textContent=document.getElementById('bg').value;}
 
-// ── MEDIAN-CUT QUANTIZATION ───────────────────────────────────────────────────
-function medianCut(pixels,n){
+// ── COLOR SPACE CONVERSIONS ───────────────────────────────────────────────────
+function rgb2hsl(r,g,b){
+  r/=255;g/=255;b/=255;
+  var mx=Math.max(r,g,b),mn=Math.min(r,g,b),h=0,s=0,l=(mx+mn)/2;
+  if(mx!==mn){var d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);
+    if(mx===r)h=((g-b)/d+(g<b?6:0))/6;
+    else if(mx===g)h=((b-r)/d+2)/6;
+    else h=((r-g)/d+4)/6;}
+  return[h*360,s,l];
+}
+
+// sRGB -> linear -> XYZ -> LAB for perceptual distance
+function rgb2lab(r,g,b){
+  function lin(c){c/=255;return c>0.04045?Math.pow((c+0.055)/1.055,2.4):c/12.92;}
+  var rl=lin(r),gl=lin(g),bl=lin(b);
+  var x=(rl*0.4124+gl*0.3576+bl*0.1805)/0.9505;
+  var y=(rl*0.2126+gl*0.7152+bl*0.0722)/1.0000;
+  var z=(rl*0.0193+gl*0.1192+bl*0.9505)/1.0890;
+  function f(t){return t>0.008856?Math.pow(t,1/3):7.787*t+16/116;}
+  var fx=f(x),fy=f(y),fz=f(z);
+  return[116*fy-16, 500*(fx-fy), 200*(fy-fz)];
+}
+function labDist(lab1,lab2){
+  return Math.sqrt(Math.pow(lab1[0]-lab2[0],2)+Math.pow(lab1[1]-lab2[1],2)+Math.pow(lab1[2]-lab2[2],2));
+}
+
+// ── HSL-ZONE AWARE QUANTIZATION ───────────────────────────────────────────────
+// Hue zones: Red, Orange, Yellow, YellowGreen, Green, Cyan, Blue, Purple, Pink, Neutral
+function getHueZone(h,s,l){
+  if(s<0.12||l>0.88||l<0.08) return 'neutral';
+  if(h<18||h>=330) return 'red';
+  if(h<45) return 'orange';
+  if(h<70) return 'yellow';
+  if(h<100) return 'yellowgreen';
+  if(h<165) return 'green';
+  if(h<195) return 'cyan';
+  if(h<255) return 'blue';
+  if(h<290) return 'purple';
+  return 'pink';
+}
+
+function smartQuantize(pixels, nColors){
+  if(!pixels.length) return[[128,128,128]];
+
+  // 1. Classify pixels by hue zone
+  var zones={};
+  pixels.forEach(function(p){
+    var hsl=rgb2hsl(p[0],p[1],p[2]);
+    var z=getHueZone(hsl[0],hsl[1],hsl[2]);
+    if(!zones[z]) zones[z]={pixels:[],count:0};
+    zones[z].pixels.push(p);
+    zones[z].count++;
+  });
+
+  var zoneNames=Object.keys(zones);
+  var total=pixels.length;
+
+  // 2. Compute proportional quota per zone, min 1 if zone exists
+  // Clamp max quota per zone to prevent one zone hogging all colors
+  var rawQuotas={};
+  var maxPerZone=Math.max(2, Math.floor(nColors * 0.40)); // no zone gets >40% of colors
+  zoneNames.forEach(function(z){
+    rawQuotas[z]=Math.max(1, Math.round((zones[z].count/total)*nColors));
+  });
+
+  // 3. Rescale quotas so they sum to nColors, respect maxPerZone cap
+  var iterations=3;
+  for(var iter=0;iter<iterations;iter++){
+    var sum=0;
+    zoneNames.forEach(function(z){ rawQuotas[z]=Math.min(rawQuotas[z],maxPerZone); sum+=rawQuotas[z]; });
+    var diff=nColors-sum;
+    if(diff===0) break;
+    // distribute leftover to zones that still have room (sorted by count desc)
+    var sorted=zoneNames.slice().sort(function(a,b){return zones[b].count-zones[a].count;});
+    for(var j=0;j<sorted.length&&diff!==0;j++){
+      var z=sorted[j];
+      if(diff>0&&rawQuotas[z]<maxPerZone){rawQuotas[z]++;diff--;}
+      else if(diff<0&&rawQuotas[z]>1){rawQuotas[z]--;diff++;}
+    }
+  }
+
+  // 4. Run median cut within each zone using its quota
+  var allCentroids=[];
+  zoneNames.forEach(function(z){
+    var q=rawQuotas[z]||1;
+    var zPix=zones[z].pixels;
+    var cs=medianCutRaw(zPix, q);
+    cs.forEach(function(c){ allCentroids.push(c); });
+  });
+
+  return allCentroids;
+}
+
+function medianCutRaw(pixels,n){
   if(!pixels.length)return[[128,128,128]];
+  if(n<=1){
+    var s=[0,0,0];pixels.forEach(function(p){s[0]+=p[0];s[1]+=p[1];s[2]+=p[2];});
+    var l=pixels.length;return[[Math.round(s[0]/l),Math.round(s[1]/l),Math.round(s[2]/l)]];
+  }
   function mkBucket(px){
     var r0=255,r1=0,g0=255,g1=0,b0=255,b1=0;
     px.forEach(function(p){r0=Math.min(r0,p[0]);r1=Math.max(r1,p[0]);g0=Math.min(g0,p[1]);g1=Math.max(g1,p[1]);b0=Math.min(b0,p[2]);b1=Math.max(b1,p[2]);});
@@ -461,6 +586,9 @@ function medianCut(pixels,n){
     return[Math.round(s[0]/l),Math.round(s[1]/l),Math.round(s[2]/l)];
   });
 }
+
+// Keep old name for compatibility
+function medianCut(pixels,n){ return medianCutRaw(pixels,n); }
 
 // ── IMAGE CONVERSION ──────────────────────────────────────────────────────────
 function convertImage(){
@@ -543,9 +671,30 @@ function doConvert(){
   }
   showProgress('Quantizing colors to DMC palette…');
   setTimeout(function(){
-    var palRGB=medianCut(pixels.length?pixels.slice():[[128,128,128]],nColors);
-    var dmcPal=palRGB.map(function(rgb){return nDMC(r2h(rgb[0],rgb[1],rgb[2])).hex;});
-    dmcPal=dmcPal.filter(function(v,i,a){return a.indexOf(v)===i;});
+    // Use hue-zone-aware quantization so no single hue monopolises all slots
+    var palRGB=smartQuantize(pixels.length?pixels.slice():[[128,128,128]],nColors);
+
+    // Map each centroid to nearest DMC using perceptual LAB distance.
+    // Enforce uniqueness: if two centroids map to the same DMC,
+    // find the next-best DMC for the duplicate.
+    var usedDMC={};
+    var dmcPal=[];
+    palRGB.forEach(function(rgb){
+      var hex=r2h(rgb[0],rgb[1],rgb[2]);
+      var match=nDMC(hex);
+      if(!usedDMC[match.hex]){
+        usedDMC[match.hex]=true;
+        dmcPal.push(match.hex);
+      } else {
+        var alt=nDMCExclude(hex, usedDMC);
+        if(alt&&!usedDMC[alt.hex]){
+          usedDMC[alt.hex]=true;
+          dmcPal.push(alt.hex);
+        }
+        // truly identical -> skip (rare)
+      }
+    });
+
     showProgress('Building stitch grid…');
     setTimeout(function(){
       COLS=sz;ROWS=sz;palette=dmcPal;SI=0;
