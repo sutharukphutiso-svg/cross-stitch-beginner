@@ -30,6 +30,36 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;font-size
 #ov{pointer-events:none}
 #statusbar{height:26px;background:#fff;border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:18px;flex-shrink:0;font-size:11px;color:var(--muted)}
 #statusbar b{color:var(--text);font-weight:500}
+#right-panel{width:220px;flex-shrink:0;background:#fff;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#rp-head{padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--sage-dk);display:flex;align-items:center;justify-content:space-between}
+#rp-head span{font-family:'Lora',serif;font-size:13px;color:#fff}
+#rp-body{flex:1;overflow-y:auto;padding:8px}
+#ref-preview{width:100%;border-radius:6px;border:1px solid var(--border);display:block;margin-bottom:8px;background:var(--cream)}
+#ref-placeholder{width:100%;height:100px;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);margin-bottom:8px}
+.rp-undo-btn{width:100%;padding:7px;font-size:12px;font-family:"DM Sans",sans-serif;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;color:var(--text);text-align:center;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.rp-undo-btn:hover{background:var(--sage);color:#fff;border-color:var(--sage)}
+.rp-undo-btn:active{background:var(--sage-dk)}
+/* DMC Picker Modal */
+#dmc-picker-modal{display:none;position:fixed;inset:0;z-index:2000;background:rgba(42,31,20,.45);align-items:center;justify-content:center}
+#dmc-picker-modal.show{display:flex}
+#dmc-picker-box{background:#fff;border-radius:12px;width:360px;max-height:80vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);overflow:hidden}
+#dmc-picker-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#dmc-picker-head h3{font-family:'Lora',serif;font-size:14px;color:var(--text)}
+#dmc-picker-close{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);line-height:1;padding:2px 6px}
+#dmc-picker-close:hover{color:var(--text)}
+#dmc-search{width:100%;padding:8px 12px;border:none;border-bottom:1px solid var(--border);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;color:var(--text)}
+#dmc-search::placeholder{color:var(--muted)}
+#dmc-list{flex:1;overflow-y:auto;padding:4px 0}
+#dmc-list::-webkit-scrollbar{width:4px}
+#dmc-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.dmc-item{display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer;transition:background .1s}
+.dmc-item:hover{background:var(--cream)}
+.dmc-item.selected{background:rgba(90,122,90,.12)}
+.dmc-swatch{width:22px;height:22px;border-radius:4px;flex-shrink:0;border:1px solid rgba(0,0,0,.12)}
+.dmc-info{flex:1;min-width:0}
+.dmc-num{font-weight:500;font-size:12px;color:var(--text)}
+.dmc-name{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dmc-picker-footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
 .sec{margin-bottom:10px}
 .sec-t{font-size:9px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between}
 .sec-b{background:var(--cream);border-radius:8px;padding:9px;border:1px solid var(--border)}
@@ -232,6 +262,8 @@ input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
     <button class="tb-btn" onclick="doZoom(0.8)">−</button>
     <button class="tb-btn" onclick="fitZoom()">Fit</button>
     <button class="tb-btn" onclick="resetView()">Reset</button>
+    <div style="width:1px;height:20px;background:var(--border);margin:0 3px;flex-shrink:0"></div>
+    <button class="tb-btn" onclick="undo()" title="Undo (Ctrl+Z)" style="font-size:13px">↩ Undo</button>
   </div>
   <div id="canvas-area">
     <canvas id="gc"></canvas><canvas id="ov"></canvas>
@@ -249,6 +281,38 @@ input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
     <span style="margin-left:auto">Color: <span id="stcol" style="display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;border:1px solid #ccc;margin-right:3px"></span><b id="sthex">--</b></span>
   </div>
 </div>
+</div>
+
+<!-- ── RIGHT PANEL ── -->
+<div id="right-panel">
+  <div id="rp-head">
+    <span>🖼 Reference</span>
+  </div>
+  <div id="rp-body">
+    <div id="ref-placeholder">Upload an image first</div>
+    <img id="ref-preview" style="display:none">
+    <div style="height:1px;background:var(--border);margin:8px 0"></div>
+    <button class="rp-undo-btn" onclick="undo()" title="Ctrl+Z">
+      <span style="font-size:15px">↩</span> Undo last action
+    </button>
+    <div style="margin-top:6px;font-size:10px;color:var(--muted);text-align:center">Ctrl+Z</div>
+  </div>
+</div>
+
+<!-- ── DMC PICKER MODAL ── -->
+<div id="dmc-picker-modal">
+  <div id="dmc-picker-box">
+    <div id="dmc-picker-head">
+      <h3>Choose DMC Color</h3>
+      <button id="dmc-picker-close" onclick="dmcPickerClose()">✕</button>
+    </div>
+    <input type="text" id="dmc-search" placeholder="Search by number or name… e.g. 726 or Topaz" oninput="dmcSearchFilter()">
+    <div id="dmc-list"></div>
+    <div id="dmc-picker-footer">
+      <button class="btn pr" onclick="dmcPickerOK()" style="flex:1">✓ Apply</button>
+      <button class="btn" onclick="dmcPickerClose()" style="flex:1">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <div id="cpick">
@@ -454,6 +518,11 @@ function loadFile(file){
       document.getElementById('re-btn').style.display='block';
       var btn=document.getElementById('cvt-btn');
       btn.disabled=false;btn.style.opacity='1';btn.textContent='▶ Convert to Pattern';
+      // Update right panel reference preview
+      var rp=document.getElementById('ref-preview');
+      rp.src=e.target.result;rp.style.display='block';
+      document.getElementById('ref-placeholder').style.display='none';
+      onSz(); // refresh size label with aspect ratio
     };
     img.src=e.target.result;
   };
@@ -935,7 +1004,82 @@ function getDMCSorted(){
   for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]>=0)cnt[grid[r][c]]++;
   return palette.map(function(h,i){return{hex:h,count:cnt[i],idx:i};}).filter(function(x){return x.count>0;}).sort(function(a,b){return b.count-a.count;});
 }
-function addCol(){palette.push('#888888');SI=palette.length-1;updPal();updDMC();openCP(SI,window.innerWidth/2,window.innerHeight/2);}
+// ── DMC PICKER (replaces native color picker for Add Color) ──────────────────
+var dmcPickerTgt=-1;
+var dmcPickerSelected=null;
+
+function buildDmcList(filter){
+  var list=document.getElementById('dmc-list');
+  list.innerHTML='';
+  var q=(filter||'').toLowerCase().trim();
+  var shown=0;
+  DMC.forEach(function(e,idx){
+    var num=String(e[0]).toLowerCase();
+    var name=e[1].toLowerCase();
+    if(q&&num.indexOf(q)<0&&name.indexOf(q)<0) return;
+    if(shown>120) return; // performance cap
+    shown++;
+    var item=document.createElement('div');
+    item.className='dmc-item';
+    var hex=r2h(e[2],e[3],e[4]);
+    if(dmcPickerSelected&&dmcPickerSelected===hex) item.classList.add('selected');
+    item.innerHTML='<div class="dmc-swatch" style="background:'+hex+'"></div>'
+      +'<div class="dmc-info"><div class="dmc-num">DMC '+e[0]+'</div><div class="dmc-name">'+e[1]+'</div></div>';
+    item.addEventListener('click',function(){
+      dmcPickerSelected=hex;
+      document.querySelectorAll('.dmc-item').forEach(function(i){i.classList.remove('selected');});
+      item.classList.add('selected');
+    });
+    list.appendChild(item);
+  });
+}
+
+function dmcSearchFilter(){
+  buildDmcList(document.getElementById('dmc-search').value);
+}
+
+function openDmcPicker(palIdx){
+  dmcPickerTgt=palIdx;
+  dmcPickerSelected=palette[palIdx]||null;
+  document.getElementById('dmc-search').value='';
+  buildDmcList('');
+  // Scroll to currently selected color
+  document.getElementById('dmc-picker-modal').classList.add('show');
+  // Scroll selected into view
+  setTimeout(function(){
+    var sel=document.querySelector('#dmc-list .dmc-item.selected');
+    if(sel) sel.scrollIntoView({block:'center'});
+  },30);
+}
+
+function dmcPickerOK(){
+  if(dmcPickerSelected&&dmcPickerTgt>=0){
+    palette[dmcPickerTgt]=dmcPickerSelected;
+    updPal();updDMC();render();
+  }
+  document.getElementById('dmc-picker-modal').classList.remove('show');
+}
+
+function dmcPickerClose(){
+  // If adding new color and cancelled, remove the placeholder
+  if(dmcPickerTgt>=0&&palette[dmcPickerTgt]==='#888888'&&!dmcPickerSelected){
+    palette.splice(dmcPickerTgt,1);
+    updPal();updDMC();
+  }
+  document.getElementById('dmc-picker-modal').classList.remove('show');
+}
+
+// Close on backdrop click
+document.getElementById('dmc-picker-modal').addEventListener('click',function(e){
+  if(e.target===this) dmcPickerClose();
+});
+
+function addCol(){
+  palette.push('#888888');
+  SI=palette.length-1;
+  updPal();updDMC();
+  openDmcPicker(SI);
+}
 function eraseColorAll(ci){
   if(!confirm('Erase all stitches of this color?'))return;
   pushHistSnap();
@@ -959,20 +1103,12 @@ function pushHist(label){
 }
 function undo(){if(!hist.length)return;grid=hist.pop();render();updDMC();pushHist('Undo');}
 
-// ── COLOR PICKER ──────────────────────────────────────────────────────────────
-function openCP(idx,x,y){
-  cpTgt=idx;var cp=document.getElementById('cpick');
-  document.getElementById('cpc').value=palette[idx]||'#888888';
-  document.getElementById('cph').value=palette[idx]||'#888888';
-  cp.style.display='block';
-  cp.style.left=Math.min(x,window.innerWidth-200)+'px';
-  cp.style.top=Math.min(y,window.innerHeight-160)+'px';
-}
-function cpChg(){var v=document.getElementById('cpc').value;document.getElementById('cph').value=v;if(cpTgt>=0){palette[cpTgt]=v;updPal();render();}}
-function cpHex(){var v=document.getElementById('cph').value;if(/^#[0-9a-f]{6}$/i.test(v)){document.getElementById('cpc').value=v;if(cpTgt>=0){palette[cpTgt]=v;updPal();render();}}}
-function cpOK(){document.getElementById('cpick').style.display='none';updDMC();}
-function cpX(){document.getElementById('cpick').style.display='none';}
-document.addEventListener('click',function(e){if(!document.getElementById('cpick').contains(e.target)&&!e.target.classList.contains('sw'))document.getElementById('cpick').style.display='none';});
+// ── COLOR PICKER (now uses DMC picker modal) ──────────────────────────────────
+function openCP(idx,x,y){ openDmcPicker(idx); }
+function cpChg(){}
+function cpHex(){}
+function cpOK(){ dmcPickerOK(); }
+function cpX(){ dmcPickerClose(); }
 
 
 // ── EXPORT FUNCTIONS (reused from original) ─────────────────────────────────
@@ -1507,6 +1643,9 @@ function boot(){
     document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';render();
   },600);
   window.addEventListener('resize',function(){render();});
+  document.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
+  });
 }
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot);}else{setTimeout(boot,0);}
 
