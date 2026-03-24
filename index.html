@@ -461,7 +461,17 @@ function loadFile(file){
 }
 
 // ── SLIDER LABELS ─────────────────────────────────────────────────────────────
-function onSz(){var v=parseInt(document.getElementById('sz').value);document.getElementById('szv').textContent=v+' × '+v;}
+function onSz(){
+  var v=parseInt(document.getElementById('sz').value);
+  var lbl=v+' × '+v;
+  if(refImg){
+    var iw=refImg.width,ih=refImg.height,asp=iw/ih;
+    var cw,ch;
+    if(asp>=1){cw=v;ch=Math.max(1,Math.round(v/asp));}else{ch=v;cw=Math.max(1,Math.round(v*asp));}
+    lbl=cw+' × '+ch;
+  }
+  document.getElementById('szv').textContent=lbl;
+}
 function onNc(){document.getElementById('ncv').textContent=document.getElementById('nc').value;}
 function onBg(){document.getElementById('bgv').textContent=document.getElementById('bg').value;}
 
@@ -492,15 +502,20 @@ function labDist(lab1,lab2){
 }
 
 // ── HSL-ZONE AWARE QUANTIZATION ───────────────────────────────────────────────
-// Hue zones: Red, Orange, Yellow, YellowGreen, Green, Cyan, Blue, Purple, Pink, Neutral
+// Finer zones including brown/dark to protect eye/beak/leg colors
 function getHueZone(h,s,l){
-  if(s<0.12||l>0.88||l<0.08) return 'neutral';
+  // Very dark pixels (eyes, outlines) -> own zone regardless of hue
+  if(l<0.12) return 'dark';
+  // Very light/desaturated -> neutral
+  if(s<0.10||l>0.90) return 'neutral';
+  // Browns: orange hue but low-medium saturation & medium-low lightness
+  if(h>=15&&h<50&&s<0.65&&l<0.55) return 'brown';
   if(h<18||h>=330) return 'red';
-  if(h<45) return 'orange';
-  if(h<70) return 'yellow';
-  if(h<100) return 'yellowgreen';
+  if(h<50) return 'orange';
+  if(h<75) return 'yellow';
+  if(h<105) return 'yellowgreen';
   if(h<165) return 'green';
-  if(h<195) return 'cyan';
+  if(h<200) return 'cyan';
   if(h<255) return 'blue';
   if(h<290) return 'purple';
   return 'pink';
@@ -511,6 +526,7 @@ function smartQuantize(pixels, nColors){
 
   // 1. Classify pixels by hue zone
   var zones={};
+  var total=pixels.length;
   pixels.forEach(function(p){
     var hsl=rgb2hsl(p[0],p[1],p[2]);
     var z=getHueZone(hsl[0],hsl[1],hsl[2]);
@@ -520,38 +536,34 @@ function smartQuantize(pixels, nColors){
   });
 
   var zoneNames=Object.keys(zones);
-  var total=pixels.length;
 
-  // 2. Compute proportional quota per zone, min 1 if zone exists
-  // Clamp max quota per zone to prevent one zone hogging all colors
+  // 2. Give each zone a proportional quota, cap at 30% to prevent monopoly
+  var maxPerZone=Math.max(2, Math.floor(nColors * 0.30));
   var rawQuotas={};
-  var maxPerZone=Math.max(2, Math.floor(nColors * 0.40)); // no zone gets >40% of colors
   zoneNames.forEach(function(z){
-    rawQuotas[z]=Math.max(1, Math.round((zones[z].count/total)*nColors));
+    // Zones with tiny pixel counts still get 1 slot so small details aren't lost
+    var prop=zones[z].count/total;
+    rawQuotas[z]=Math.max(1, Math.round(prop*nColors));
   });
 
-  // 3. Rescale quotas so they sum to nColors, respect maxPerZone cap
-  var iterations=3;
-  for(var iter=0;iter<iterations;iter++){
+  // 3. Iteratively clamp and redistribute until sum == nColors
+  for(var iter=0;iter<5;iter++){
     var sum=0;
     zoneNames.forEach(function(z){ rawQuotas[z]=Math.min(rawQuotas[z],maxPerZone); sum+=rawQuotas[z]; });
     var diff=nColors-sum;
     if(diff===0) break;
-    // distribute leftover to zones that still have room (sorted by count desc)
-    var sorted=zoneNames.slice().sort(function(a,b){return zones[b].count-zones[a].count;});
-    for(var j=0;j<sorted.length&&diff!==0;j++){
-      var z=sorted[j];
-      if(diff>0&&rawQuotas[z]<maxPerZone){rawQuotas[z]++;diff--;}
-      else if(diff<0&&rawQuotas[z]>1){rawQuotas[z]--;diff++;}
+    var ranked=zoneNames.slice().sort(function(a,b){ return zones[b].count-zones[a].count; });
+    for(var j=0;j<ranked.length&&diff!==0;j++){
+      var z=ranked[j];
+      if(diff>0&&rawQuotas[z]<maxPerZone){ rawQuotas[z]++;diff--; }
+      else if(diff<0&&rawQuotas[z]>1){ rawQuotas[z]--;diff++; }
     }
   }
 
-  // 4. Run median cut within each zone using its quota
+  // 4. Run median cut within each zone
   var allCentroids=[];
   zoneNames.forEach(function(z){
-    var q=rawQuotas[z]||1;
-    var zPix=zones[z].pixels;
-    var cs=medianCutRaw(zPix, q);
+    var cs=medianCutRaw(zones[z].pixels, rawQuotas[z]||1);
     cs.forEach(function(c){ allCentroids.push(c); });
   });
 
@@ -643,13 +655,22 @@ function doConvert(){
   var sz=parseInt(document.getElementById('sz').value);
   var nColors=parseInt(document.getElementById('nc').value);
   var tol=parseInt(document.getElementById('bg').value)||30;
-  // Draw full-res for BG detection, then sz for pattern
+
+  // Draw full-res for BG detection
   var ocFull=document.createElement('canvas');ocFull.width=refImg.width;ocFull.height=refImg.height;
   var oxFull=ocFull.getContext('2d');oxFull.drawImage(refImg,0,0);
   var fullData=oxFull.getImageData(0,0,refImg.width,refImg.height);
-  var oc=document.createElement('canvas');oc.width=sz;oc.height=sz;
-  var ox=oc.getContext('2d');ox.drawImage(refImg,0,0,sz,sz);
-  var imgData=ox.getImageData(0,0,sz,sz);var px=imgData.data;
+
+  // Preserve aspect ratio when scaling to pattern grid
+  var iw=refImg.width,ih=refImg.height;
+  var aspect=iw/ih;
+  var COLS_sz,ROWS_sz;
+  if(aspect>=1){ COLS_sz=sz; ROWS_sz=Math.max(1,Math.round(sz/aspect)); }
+  else          { ROWS_sz=sz; COLS_sz=Math.max(1,Math.round(sz*aspect)); }
+
+  var oc=document.createElement('canvas');oc.width=COLS_sz;oc.height=ROWS_sz;
+  var ox=oc.getContext('2d');ox.drawImage(refImg,0,0,COLS_sz,ROWS_sz);
+  var imgData=ox.getImageData(0,0,COLS_sz,ROWS_sz);var px=imgData.data;
 
   // Detect BG color
   var bgR=255,bgG=255,bgB=255;
@@ -663,7 +684,7 @@ function doConvert(){
   }
 
   var pixels=[];
-  for(var i=0;i<sz*sz;i++){
+  for(var i=0;i<COLS_sz*ROWS_sz;i++){
     var r=px[i*4],g=px[i*4+1],b=px[i*4+2],a=px[i*4+3];
     if(a<30)continue;
     if(bgMode!=='off'&&isBgPixel(r,g,b,a,bgR,bgG,bgB,tol))continue;
@@ -697,18 +718,18 @@ function doConvert(){
 
     showProgress('Building stitch grid…');
     setTimeout(function(){
-      COLS=sz;ROWS=sz;palette=dmcPal;SI=0;
+      COLS=COLS_sz;ROWS=ROWS_sz;palette=dmcPal;SI=0;
       grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
-      for(var i=0;i<sz*sz;i++){
+      for(var i=0;i<COLS_sz*ROWS_sz;i++){
         var r2=px[i*4],g2=px[i*4+1],b2=px[i*4+2],a2=px[i*4+3];
         if(a2<30)continue;
         if(bgMode!=='off'&&isBgPixel(r2,g2,b2,a2,bgR,bgG,bgB,tol))continue;
-        var row=Math.floor(i/sz),col=i%sz;
+        var row=Math.floor(i/COLS_sz),col=i%COLS_sz;
         grid[row][col]=nHex([r2,g2,b2],palette);
       }
       hasPattern=true;showEmpty(false);
       updPal();updSt();updDMC();
-      pushHist('Converted image ('+sz+'x'+sz+', '+dmcPal.length+' colors)');
+      pushHist('Converted image ('+COLS_sz+'x'+ROWS_sz+', '+dmcPal.length+' colors)');
       fitZoom();hideProgress();
       var btn=document.getElementById('cvt-btn');btn.textContent='▶ Re-convert';btn.disabled=false;btn.style.opacity='1';
     },30);
