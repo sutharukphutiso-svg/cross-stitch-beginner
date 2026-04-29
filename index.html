@@ -82,7 +82,7 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
 .zi{font-size:11px;color:var(--muted);min-width:40px;text-align:center}
 
 /* Canvas */
-#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#0a0906;display:flex;align-items:center;justify-content:center}
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#e8e4dc;display:flex;align-items:center;justify-content:center}
 #canvas-wrap::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.4));pointer-events:none}
 #gc{position:absolute;top:0;left:0;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair}
 #ov{position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated}
@@ -140,7 +140,7 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
 #progress-text{font-size:12px;color:var(--cream-dim);margin-bottom:5px}
 
 /* Embroidery hoop preview effect */
-.hoop-bg{position:absolute;pointer-events:none;opacity:0.03;font-size:400px;top:50%;left:50%;transform:translate(-50%,-50%);user-select:none;line-height:1}
+.hoop-bg{position:absolute;pointer-events:none;opacity:0.06;font-size:400px;top:50%;left:50%;transform:translate(-50%,-50%);user-select:none;line-height:1;color:#b0a890}
 </style>
 </head>
 <body>
@@ -227,8 +227,9 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
           </select>
         </div>
         <div class="cb-row" style="margin-top:6px"><input type="checkbox" id="chkOutline" checked><label for="chkOutline">ตรวจจับเส้นขอบ (outline)</label></div>
-        <div class="cb-row"><input type="checkbox" id="chkBg" checked><label for="chkBg">ลบพื้นหลังสีขาว</label></div>
-        <div class="cb-row"><input type="checkbox" id="chkNoise" checked><label for="chkNoise">กรอง Noise รอบนอก</label></div>
+        <div class="cb-row"><input type="checkbox" id="chkBg" checked><label for="chkBg">ลบพื้นหลังสีขาว/โปร่งใส</label></div>
+        <div class="cb-row" style="margin-top:4px"><input type="checkbox" id="chkNoise" checked><label for="chkNoise">กรอง Noise รอบนอก</label></div>
+        <div class="cb-row"><input type="checkbox" id="chkHSL" checked><label for="chkHSL">ใช้ HSL distance (แยกสีดีขึ้น)</label></div>
       </div>
     </div>
 
@@ -405,6 +406,33 @@ function colorDist(r1,g1,b1,r2,g2,b2){
   var dr=r1-r2,dg=g1-g2,db=b1-b2;
   return (2+mr/256)*dr*dr + 4*dg*dg + (2+(255-mr)/256)*db*db;
 }
+function colorDistHSL(r1,g1,b1,r2,g2,b2){
+  // HSL-based distance — much better at separating hue groups like yellow vs orange
+  function toHSL(r,g,b){
+    r/=255;g/=255;b/=255;
+    var mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+    var h=0,s=0,l=(mx+mn)/2;
+    if(d>0){
+      s=d/(1-Math.abs(2*l-1));
+      if(mx===r)h=((g-b)/d+6)%6;
+      else if(mx===g)h=(b-r)/d+2;
+      else h=(r-g)/d+4;
+      h/=6;
+    }
+    return[h,s,l];
+  }
+  var h1=toHSL(r1,g1,b1),h2=toHSL(r2,g2,b2);
+  var dh=Math.min(Math.abs(h1[0]-h2[0]),1-Math.abs(h1[0]-h2[0]))*2;
+  var ds=Math.abs(h1[1]-h2[1]);
+  var dl=Math.abs(h1[2]-h2[2]);
+  // Weighted: hue difference most important
+  return (dh*3)*(dh*3)*10000 + (ds*1.5)*(ds*1.5)*2000 + dl*dl*1000;
+}
+function smartColorDist(r1,g1,b1,r2,g2,b2){
+  var useHSL=document.getElementById('chkHSL')&&document.getElementById('chkHSL').checked;
+  if(useHSL)return colorDistHSL(r1,g1,b1,r2,g2,b2);
+  return colorDist(r1,g1,b1,r2,g2,b2);
+}
 function nearDMC(hex){
   if(dmcCache[hex])return dmcCache[hex];
   var rgb=h2r(hex);
@@ -413,6 +441,15 @@ function nearDMC(hex){
   for(var i=0;i<DMC.length;i++){
     var d=colorDist(rgb[0],rgb[1],rgb[2],DMC[i][2],DMC[i][3],DMC[i][4]);
     if(d<bd){bd=d;best=i;}
+  }
+  // secondary pass with HSL for better hue separation
+  var useHSL=document.getElementById('chkHSL')&&document.getElementById('chkHSL').checked;
+  if(useHSL){
+    bd=1e18;
+    for(var i=0;i<DMC.length;i++){
+      var d2=colorDistHSL(rgb[0],rgb[1],rgb[2],DMC[i][2],DMC[i][3],DMC[i][4]);
+      if(d2<bd){bd=d2;best=i;}
+    }
   }
   var d2={num:DMC[best][0],name:DMC[best][1],hex:r2h(DMC[best][2],DMC[best][3],DMC[best][4])};
   dmcCache[hex]=d2;return d2;
@@ -436,7 +473,8 @@ function render(){
   var ss=document.getElementById('showSym').checked;
 
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='#1a1610';ctx.fillRect(0,0,W,H);
+  // White fabric background for empty cells
+  ctx.fillStyle='#f5eedc';ctx.fillRect(0,0,W,H);
 
   for(var r=0;r<ROWS;r++){
     for(var c=0;c<COLS;c++){
@@ -783,7 +821,8 @@ function autoColors(){
   });
   var rawCount=significantColors.length;
 
-  // Merge visually similar colors (distance < 25)
+  // Merge visually similar colors using HSL when enabled
+  var useHSL2=document.getElementById('chkHSL')&&document.getElementById('chkHSL').checked;
   var merged=[];
   significantColors.sort(function(a,b){return b[1]-a[1];});
   significantColors.forEach(function(e){
@@ -792,8 +831,11 @@ function autoColors(){
     var found=false;
     for(var m=0;m<merged.length;m++){
       var mr=merged[m][0],mg=merged[m][1],mb=merged[m][2];
-      var dist=Math.abs(r-mr)+Math.abs(g-mg)+Math.abs(b-mb);
-      if(dist<45){found=true;break;}
+      var dist=useHSL2
+        ? colorDistHSL(r,g,b,mr,mg,mb)
+        : Math.abs(r-mr)+Math.abs(g-mg)+Math.abs(b-mb)*3;
+      var thresh=useHSL2?500:45;
+      if(dist<thresh){found=true;break;}
     }
     if(!found)merged.push([r,g,b]);
   });
@@ -911,8 +953,10 @@ function doConvert(){
               bW=Math.round(Math.max(0,Math.min(255,(bW-(1-a)*255)/a)));
             }
           } else if(chkBg){
+            // Pre-mark near-white low-saturation pixels (flood fill refines later)
             var lum=0.299*rW+0.587*gW+0.114*bW;
-            if(lum>235&&Math.max(rW,gW,bW)-Math.min(rW,gW,bW)<25)isBg=true;
+            var sat=Math.max(rW,gW,bW)-Math.min(rW,gW,bW);
+            if(lum>215&&sat<30)isBg=true;
           }
 
           pg[r].push([rW,gW,bW]);
@@ -921,24 +965,38 @@ function doConvert(){
         }
       }
 
-      // Background flood fill for non-alpha images
+      // ── Background removal: white pixels + alpha (flood fill from edges) ──
       if(!hasAlpha&&chkBg){
-        var visited=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
+        var visited2=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
         var newBg=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
         var stk=[];
+        // Seed: edge pixels that are near-white
         for(var ei=0;ei<ROWS;ei++){
-          [[ei,0],[ei,COLS-1]].forEach(function(pt){if(bgMask[pt[0]][pt[1]]){visited[pt[0]][pt[1]]=true;stk.push(pt);}});
+          [[ei,0],[ei,COLS-1]].forEach(function(pt){
+            var px2=pg[pt[0]][pt[1]];
+            var lum2=0.299*px2[0]+0.587*px2[1]+0.114*px2[2];
+            if(lum2>225&&!visited2[pt[0]][pt[1]]){visited2[pt[0]][pt[1]]=true;stk.push(pt);}
+          });
         }
         for(var ej=0;ej<COLS;ej++){
-          [[0,ej],[ROWS-1,ej]].forEach(function(pt){if(!visited[pt[0]][pt[1]]&&bgMask[pt[0]][pt[1]]){visited[pt[0]][pt[1]]=true;stk.push(pt);}});
+          [[0,ej],[ROWS-1,ej]].forEach(function(pt){
+            var px2=pg[pt[0]][pt[1]];
+            var lum2=0.299*px2[0]+0.587*px2[1]+0.114*px2[2];
+            if(lum2>225&&!visited2[pt[0]][pt[1]]){visited2[pt[0]][pt[1]]=true;stk.push(pt);}
+          });
         }
         while(stk.length){
-          var pos=stk.pop(),pr=pos[0],pc=pos[1];
-          if(pr<0||pr>=ROWS||pc<0||pc>=COLS||!bgMask[pr][pc]||newBg[pr][pc])continue;
-          newBg[pr][pc]=true;
-          [[pr-1,pc],[pr+1,pc],[pr,pc-1],[pr,pc+1]].forEach(function(n){
-            if(n[0]>=0&&n[0]<ROWS&&n[1]>=0&&n[1]<COLS&&!visited[n[0]][n[1]]&&bgMask[n[0]][n[1]]){
-              visited[n[0]][n[1]]=true;stk.push(n);
+          var pos2=stk.pop(),pr2=pos2[0],pc2=pos2[1];
+          if(pr2<0||pr2>=ROWS||pc2<0||pc2>=COLS||newBg[pr2][pc2])continue;
+          var px3=pg[pr2][pc2];
+          var lum3=0.299*px3[0]+0.587*px3[1]+0.114*px3[2];
+          var sat3=Math.max(px3[0],px3[1],px3[2])-Math.min(px3[0],px3[1],px3[2]);
+          // Only flood through light, low-saturation pixels
+          if(lum3<210||sat3>35)continue;
+          newBg[pr2][pc2]=true;
+          [[pr2-1,pc2],[pr2+1,pc2],[pr2,pc2-1],[pr2,pc2+1]].forEach(function(n){
+            if(n[0]>=0&&n[0]<ROWS&&n[1]>=0&&n[1]<COLS&&!visited2[n[0]][n[1]]){
+              visited2[n[0]][n[1]]=true;stk.push(n);
             }
           });
         }
@@ -1022,7 +1080,7 @@ function doConvert(){
           for(var pi=start;pi<palette.length;pi++){
             var prgb=h2r(palette[pi]);
             if(!prgb)continue;
-            var d=colorDist(px[0],px[1],px[2],prgb[0],prgb[1],prgb[2]);
+            var d=smartColorDist(px[0],px[1],px[2],prgb[0],prgb[1],prgb[2]);
             if(d<bestD){bestD=d;bestI=pi;}
           }
           grid[r][c]=bestI;
@@ -1105,7 +1163,7 @@ function kMeansQuantize(pixels,k){
     var dists=sample.map(function(px){
       var md=1e18;
       centers.forEach(function(c){
-        var d=colorDist(px[0],px[1],px[2],c[0],c[1],c[2]);
+        var d=smartColorDist(px[0],px[1],px[2],c[0],c[1],c[2]);
         if(d<md)md=d;
       });
       return md;
@@ -1124,7 +1182,7 @@ function kMeansQuantize(pixels,k){
     workPx.forEach(function(px){
       var bi=0,bd=1e18;
       centers.forEach(function(c,ci){
-        var d=colorDist(px[0],px[1],px[2],c[0],c[1],c[2]);
+        var d=smartColorDist(px[0],px[1],px[2],c[0],c[1],c[2]);
         if(d<bd){bd=d;bi=ci;}
       });
       sums[bi][0]+=px[0];sums[bi][1]+=px[1];sums[bi][2]+=px[2];sums[bi][3]++;
