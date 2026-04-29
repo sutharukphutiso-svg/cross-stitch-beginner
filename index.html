@@ -203,7 +203,10 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
     <div id="fab-size" style="font-size:10px;color:var(--gold)">-- × -- cm</div>
   </div>
 
-  <button class="btn primary" style="font-size:13px;padding:8px" onclick="doConvert()">✦ แปลงเป็น Pattern</button>
+  <div style="display:flex;gap:4px;margin-bottom:0">
+    <button class="btn primary" style="flex:1;font-size:13px;padding:8px" onclick="doConvert()">✦ แปลงเป็น Pattern</button>
+    <button class="btn" style="padding:8px 10px;font-size:13px" onclick="undo()" title="Undo (Ctrl+Z)">↩</button>
+  </div>
 
   <div class="sec" style="margin-top:10px">
     <div class="sec-h">Export</div>
@@ -528,12 +531,16 @@ function updPal(){
 }
 function addColor(){palette.push('#888888');dmcCache={};SI=palette.length-1;updPal();openColorPicker(SI,null);}
 function removeUnused(){
+  pushH();
   var used=new Set();
   for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)used.add(grid[r][c]);
   var np=[],mp={};
   palette.forEach(function(h,i){if(used.has(i)){mp[i]=np.length;np.push(h);}});
-  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)grid[r][c]=grid[r][c]>=0&&mp[grid[r][c]]!==undefined?mp[grid[r][c]]:-1;
-  palette=np;SI=Math.min(SI,palette.length-1);if(SI<0)SI=0;
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    var ci=grid[r][c];
+    grid[r][c]=(ci>=0&&mp[ci]!==undefined)?mp[ci]:-1;
+  }
+  palette=np;SI=Math.min(Math.max(0,SI),palette.length-1);
   dmcCache={};updPal();render();
 }
 function updDMC(){
@@ -917,13 +924,16 @@ function doConvert(){
           if(!dmcGroups[d.num]){dmcGroups[d.num]={hex:d.hex,n:0};}
           dmcGroups[d.num].n+=e[1];
         });
-        // Sort by frequency — keep ALL DMC colors found (no maxNC slice)
-        // rare colors like pink paw pads must not be cut
+        // Sort by frequency, respect maxNC but keep rare colors (>0.03%)
         var totalFg=fg.length||1;
-        centers=Object.values(dmcGroups)
+        var allDMC=Object.values(dmcGroups)
           .sort(function(a,b){return b.n-a.n;})
-          .filter(function(g){return g.n/totalFg>0.0003;})
-          .map(function(g){return h2r(g.hex)||[128,128,128];});
+          .filter(function(g){return g.n/totalFg>0.0003;});
+        // Always include rare but significant colors (e.g. pink paws)
+        // Top maxNC by count, but force-include any color > 0.1% even if outside top N
+        var top=allDMC.slice(0,maxNC);
+        var forced=allDMC.filter(function(g){return g.n/totalFg>0.001&&top.indexOf(g)<0;});
+        centers=top.concat(forced).map(function(g){return h2r(g.hex)||[128,128,128];});
       } else {
         centers=kMeans(fg,maxNC);
       }
@@ -1231,18 +1241,22 @@ function boot(){
 
 // ─── Reference Panel Functions (global) ───
 function renderRef(){
-  if(!imgSrc||!refCTX)return;
+  if(!imgSrc)return;
+  if(!refCV)refCV=document.getElementById('ref-cv');
+  if(!refCTX&&refCV)refCTX=refCV.getContext('2d');
+  if(!refCTX)return;
   var wrap=document.getElementById('ref-wrap');
-  var dw=wrap.offsetWidth||260,dh=wrap.offsetHeight||400;
-  if(dw<10||dh<10)return;
+  var dw=(wrap&&wrap.clientWidth>10)?wrap.clientWidth:350;
+  var dh=(wrap&&wrap.clientHeight>10)?wrap.clientHeight:400;
   refCV.width=dw;refCV.height=dh;
   refCV.style.width=dw+'px';refCV.style.height=dh+'px';
-  refCTX.fillStyle='#e8e4dc';refCTX.fillRect(0,0,dw,dh);
-  if(!refNatW)return;
-  var visW=dw/refZL,visH=dh/refZL;
+  refCTX.fillStyle='#e0dbd0';refCTX.fillRect(0,0,dw,dh);
+  if(!refNatW||!refNatH)return;
+  var visW=Math.min(dw/refZL,refNatW);
+  var visH=Math.min(dh/refZL,refNatH);
   var sx=Math.max(0,Math.min(refNatW-visW,refVX));
   var sy=Math.max(0,Math.min(refNatH-visH,refVY));
-  refCTX.imageSmoothingEnabled=(refZL<1);
+  refCTX.imageSmoothingEnabled=true;
   refCTX.drawImage(imgSrc,sx,sy,visW,visH,0,0,dw,dh);
 }
 
@@ -1255,7 +1269,15 @@ window.toggleRef=function(){
 window.refZoom=function(f){
   refZL=Math.max(0.5,Math.min(20,refZL*f));renderRef();
 };
-window.refFit=function(){refZL=1;refVX=0;refVY=0;renderRef();};
+window.refFit=function(){
+  if(!refNatW||!refNatH)return;
+  var wrap=document.getElementById('ref-wrap');
+  var dw=wrap?wrap.clientWidth:350, dh=wrap?wrap.clientHeight:400;
+  // Fit entire image in panel
+  refZL=Math.min(dw/refNatW, dh/refNatH, 1);
+  refVX=0;refVY=0;
+  renderRef();
+};
 
 window.toggleRefPick=function(){
   refPicking=!refPicking;
