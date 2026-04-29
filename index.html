@@ -594,6 +594,8 @@ function loadImgFile(f){
       document.getElementById('thumb').src=ev.target.result;document.getElementById('thumb').style.display='block';
       showBadge('✓ โหลดสำเร็จ '+imgSrc.naturalWidth+'×'+imgSrc.naturalHeight,'ok');
       detectedBlock=0;
+      // Quick block size estimate for hint
+      quickBlockHint();
       // Show reference image
       refNatW=imgSrc.naturalWidth;refNatH=imgSrc.naturalHeight;
       refZL=1;refVX=0;refVY=0;
@@ -1069,6 +1071,58 @@ function exportFlossList(){
   dl(ec,'floss-list.png');
 }
 function dl(canvas,name){var a=document.createElement('a');a.download=name;a.href=canvas.toDataURL();a.click();}
+
+// ── Quick block size hint (runs after image load) ──
+function quickBlockHint(){
+  if(!imgSrc)return;
+  var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
+  // Draw at NATIVE size
+  var sc=document.createElement('canvas');
+  sc.width=sw;sc.height=sh;
+  var sx=sc.getContext('2d');
+  sx.imageSmoothingEnabled=false;
+  sx.drawImage(imgSrc,0,0,sw,sh);
+  var px=sx.getImageData(0,0,sw,sh).data;
+
+  // Sample center row only for speed
+  var cy=Math.floor(sh/2);
+  var grad=new Float32Array(sw);
+  for(var x=1;x<sw;x++){
+    var i=(cy*sw+x)*4,j=i-4;
+    grad[x]=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
+  }
+  var mean=0;for(var x=0;x<sw;x++)mean+=grad[x];mean/=sw;
+  for(var x=0;x<sw;x++)grad[x]-=mean;
+  var v0=0;for(var x=0;x<sw;x++)v0+=grad[x]*grad[x];
+
+  // Test blocks 5-30
+  var best=10,bestACF=0;
+  for(var b=5;b<=30;b++){
+    var fw=Math.round(sw/b);
+    if(fw<20||fw>150)continue;
+    var acf=0;
+    for(var x=0;x+b<sw;x++)acf+=grad[x]*grad[x+b];
+    acf=v0>0?acf/v0:0;
+    if(acf>bestACF){bestACF=acf;best=b;}
+  }
+  // Show in Block px input as placeholder
+  var inp=document.getElementById('manualBlock');
+  if(inp){
+    inp.placeholder='แนะนำ: '+best;
+    inp.value=best;
+  }
+  // Auto apply
+  var fw=Math.max(10,Math.min(150,Math.round(sw/best)));
+  var fh=Math.max(10,Math.min(150,Math.round(sh/best)));
+  if(Math.abs(fw-fh)/Math.max(fw,fh)<0.07){var avg=Math.round((fw+fh)/2);fw=avg;fh=avg;}
+  detectedBlock=best;
+  // Update sliders but don't reset grid
+  document.getElementById('sW').value=fw;document.getElementById('vW').textContent=fw;
+  document.getElementById('sH').value=fh;document.getElementById('vH').textContent=fh;
+  var hint=document.getElementById('size-hint');
+  hint.innerHTML='📐 ตรวจพบ block≈'+best+'px → แนะนำ <b>'+fw+'×'+fh+'</b>';
+  hint.style.display='block';
+}
 
 // ═══════════════ BOOT ═══════════════
 function boot(){
