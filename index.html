@@ -639,7 +639,7 @@ function autoSize(){
   for(var i=2;i<scores.length-2;i++){
     var cur=scores[i];
     // Skip if crop result >120 stitches with high variance (JPEG noise)
-    if(cur.cw>120&&cur.v>50)continue;
+    if(cur.fw>120&&cur.v>50)continue;  // filter by FULL image size
     if(cur.cw<6||cur.cw>200)continue;
     var isMin=true;
     for(var di=-2;di<=2;di++){
