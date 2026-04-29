@@ -770,7 +770,7 @@ function doConvert(){
   var maxNC=+document.getElementById('sNC').value;
   var bgMode=document.getElementById('bgMode').value;
   var chkNoise=document.getElementById('chkNoise').checked;
-  var keepAll=document.getElementById('chkKeepAll').checked;
+  var keepAll=false;
   var prog=document.getElementById('prog-wrap'),pf=document.getElementById('prog-fill'),pt=document.getElementById('prog-txt');
   prog.style.display='block';pf.style.width='0%';pt.textContent='กำลังเตรียม...';
   showBadge('⏳ กำลังแปลง...','run');
