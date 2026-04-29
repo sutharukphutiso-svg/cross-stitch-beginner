@@ -779,13 +779,20 @@ function autoSize(){
     else{targetH=base;targetW=Math.max(20,Math.round(base*sw/sh));}
   }
 
-  // Apply
+  // Apply — update sliders, labels, AND preview immediately
   document.getElementById('sW').value=targetW;document.getElementById('vW').textContent=targetW;
   document.getElementById('sH').value=targetH;document.getElementById('vH').textContent=targetH;
   document.getElementById('lock').checked=false;
 
+  // Preview the new grid size immediately (clear and redraw at new size)
+  COLS=targetW; ROWS=targetH;
+  grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
+  palette=[];SI=0;hist=[];hlab=[];dmcCache={};
+  updSt();updPal();updDMC();
+  fitZoom();
+
   var msg=isPixelArt
-    ? '🎮 Pixel art ตรวจพบ block size '+bestBlock+'px → แนะนำ '+targetW+'×'+targetH+' stitches'
+    ? '🎮 Pixel art block='+bestBlock+'px → แนะนำ '+targetW+'×'+targetH+' stitches'
     : '🖼 Flat art → แนะนำ '+targetW+'×'+targetH+' stitches';
   hint.textContent=msg;
   hint.style.display='block';
@@ -796,12 +803,13 @@ function autoColors(){
   if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
   var hint=document.getElementById('auto-color-hint');
 
-  // Sample at small size
-  var sc=document.createElement('canvas');sc.width=120;sc.height=120;
+  // Sample at reasonable size (larger = more accurate color counting)
+  var acW=Math.min(refSrc.naturalWidth,300),acH=Math.min(refSrc.naturalHeight,300);
+  var sc=document.createElement('canvas');sc.width=acW;sc.height=acH;
   var sx=sc.getContext('2d');
-  sx.fillStyle='#ffffff';sx.fillRect(0,0,120,120);
-  sx.drawImage(refSrc,0,0,120,120);
-  var px=sx.getImageData(0,0,120,120).data;
+  sx.fillStyle='#ffffff';sx.fillRect(0,0,acW,acH);
+  sx.drawImage(refSrc,0,0,acW,acH);
+  var px=sx.getImageData(0,0,acW,acH).data;
 
   // Collect unique colors (quantized to 5-bit per channel)
   var colorSet={};
@@ -815,9 +823,9 @@ function autoColors(){
   }
   var total=Object.values(colorSet).reduce(function(a,b){return a+b;},0);
 
-  // Filter very rare colors (< 0.5% of pixels)
+  // Filter very rare colors (< 0.1% of pixels — keep detail colors like paw pads)
   var significantColors=Object.entries(colorSet).filter(function(e){
-    return e[1]/total > 0.005;
+    return e[1]/total > 0.001;
   });
   var rawCount=significantColors.length;
 
@@ -834,20 +842,18 @@ function autoColors(){
       var dist=useHSL2
         ? colorDistHSL(r,g,b,mr,mg,mb)
         : Math.abs(r-mr)+Math.abs(g-mg)+Math.abs(b-mb)*3;
-      var thresh=useHSL2?500:45;
+      var thresh=useHSL2?180:40;  // 180 = แยก hue ต่างกัน ~25° ขึ้นไป
       if(dist<thresh){found=true;break;}
     }
     if(!found)merged.push([r,g,b]);
   });
 
-  var suggested=Math.min(30,Math.max(4, merged.length));
-  // Round to nice numbers
-  if(suggested>20)suggested=Math.round(suggested/4)*4;
-  else if(suggested>12)suggested=Math.round(suggested/2)*2;
+  // Use exact merged count, no rounding that loses colors
+  var suggested=Math.min(35,Math.max(4, merged.length));
 
   setNC(suggested);
 
-  hint.innerHTML='🎨 ตรวจพบ ~'+merged.length+' สีหลัก → ตั้งค่า <b>'+suggested+' สี</b>';
+  hint.innerHTML='🎨 ตรวจพบ <b>'+merged.length+' สีหลัก</b> → ตั้งค่า '+suggested+' สี';
   hint.style.display='block';
 }
 
