@@ -1227,115 +1227,117 @@ function boot(){
   refCV=document.getElementById('ref-cv');
   refCTX=refCV?refCV.getContext('2d'):null;
 
-  function renderRef(){
-    if(!imgSrc||!refCTX)return;
-    var wrap=document.getElementById('ref-wrap');
-    var dw=wrap.offsetWidth||260,dh=wrap.offsetHeight||400;
-    if(dw<10||dh<10)return;
-    refCV.width=dw;refCV.height=dh;
-    refCV.style.width=dw+'px';refCV.style.height=dh+'px';
-    refCTX.fillStyle='#e8e4dc';refCTX.fillRect(0,0,dw,dh);
-    if(!refNatW)return;
-    var visW=dw/refZL,visH=dh/refZL;
-    var sx=Math.max(0,Math.min(refNatW-visW,refVX));
-    var sy=Math.max(0,Math.min(refNatH-visH,refVY));
-    refCTX.imageSmoothingEnabled=(refZL<1);
-    refCTX.drawImage(imgSrc,sx,sy,visW,visH,0,0,dw,dh);
-  }
+}
 
-  window.toggleRef=function(){
-    var p=document.getElementById('ref-panel');
-    var t=document.getElementById('ref-toggle');
-    p.style.display=p.style.display==='none'?'block':'none';
-    t.textContent=p.style.display==='none'?'▶':'▼';
-  };
-  window.refZoom=function(f){
-    refZL=Math.max(0.5,Math.min(20,refZL*f));renderRef();
-  };
-  window.refFit=function(){refZL=1;refVX=0;refVY=0;renderRef();};
+// ─── Reference Panel Functions (global) ───
+function renderRef(){
+  if(!imgSrc||!refCTX)return;
+  var wrap=document.getElementById('ref-wrap');
+  var dw=wrap.offsetWidth||260,dh=wrap.offsetHeight||400;
+  if(dw<10||dh<10)return;
+  refCV.width=dw;refCV.height=dh;
+  refCV.style.width=dw+'px';refCV.style.height=dh+'px';
+  refCTX.fillStyle='#e8e4dc';refCTX.fillRect(0,0,dw,dh);
+  if(!refNatW)return;
+  var visW=dw/refZL,visH=dh/refZL;
+  var sx=Math.max(0,Math.min(refNatW-visW,refVX));
+  var sy=Math.max(0,Math.min(refNatH-visH,refVY));
+  refCTX.imageSmoothingEnabled=(refZL<1);
+  refCTX.drawImage(imgSrc,sx,sy,visW,visH,0,0,dw,dh);
+}
 
-  window.toggleRefPick=function(){
-    refPicking=!refPicking;
-    var btn=document.getElementById('ref-pick-btn');
-    var cv=document.getElementById('ref-cv');
-    if(refPicking){btn.classList.add('active');cv.classList.add('ref-picking');}
-    else{btn.classList.remove('active');cv.classList.remove('ref-picking');}
-  };
+window.toggleRef=function(){
+  var p=document.getElementById('ref-panel');
+  var t=document.getElementById('ref-toggle');
+  p.style.display=p.style.display==='none'?'block':'none';
+  t.textContent=p.style.display==='none'?'▶':'▼';
+};
+window.refZoom=function(f){
+  refZL=Math.max(0.5,Math.min(20,refZL*f));renderRef();
+};
+window.refFit=function(){refZL=1;refVX=0;refVY=0;renderRef();};
 
-  if(refCV){
-    // Pan
-    var refDrag=false,refDragSt=null;
-    refCV.addEventListener('mousedown',function(e){
-      if(refPicking){
-        // Pick color from reference image
-        var rc=refCV.getBoundingClientRect();
-        var px=(e.clientX-rc.left)/refZL+refVX;
-        var py=(e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY;
-        px=Math.max(0,Math.min(refNatW-1,Math.round(px)));
-        py=Math.max(0,Math.min(refNatH-1,Math.round(py)));
-        // Get pixel color from source
-        var pc=document.createElement('canvas');pc.width=1;pc.height=1;
-        var px2=pc.getContext('2d');
-        px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
-        var id=px2.getImageData(0,0,1,1).data;
-        var hex=r2h(id[0],id[1],id[2]);
-        // Add to palette if not exists
-        var d=nearDMC(hex);
-        var dmcHex=d.hex;
-        if(palette.indexOf(dmcHex)<0){palette.push(dmcHex);dmcCache={};}
-        SI=palette.indexOf(dmcHex);
-        updPal();
-        // Show preview
-        var prev=document.getElementById('ref-color-preview');
-        var dot=document.getElementById('ref-color-dot');
-        var txt=document.getElementById('ref-color-txt');
-        prev.style.display='flex';
-        dot.style.background=dmcHex;
-        txt.textContent='DMC '+d.num+' '+d.name;
-        // Auto switch to paint tool
-        var pbtn=document.getElementById('t-paint');
-        if(pbtn)setTool('paint',pbtn);
-      } else {
-        refDrag=true;
-        refDragSt={x:e.clientX,y:e.clientY,vx:refVX,vy:refVY};
-      }
-    });
-    refCV.addEventListener('mousemove',function(e){
-      if(refDrag&&refDragSt){
-        var dxPx=(e.clientX-refDragSt.x)/refZL;
-        var dyPx=(e.clientY-refDragSt.y)*refNatH/refCV.height/refZL;
-        refVX=Math.max(0,refDragSt.vx-dxPx);
-        refVY=Math.max(0,refDragSt.vy-dyPx);
-        renderRef();
-      }
-      if(refPicking){
-        // Show color under cursor
-        var rc=refCV.getBoundingClientRect();
-        var px=Math.round((e.clientX-rc.left)/refZL+refVX);
-        var py=Math.round((e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY);
-        px=Math.max(0,Math.min(refNatW-1,px));
-        py=Math.max(0,Math.min(refNatH-1,py));
-        var pc=document.createElement('canvas');pc.width=1;pc.height=1;
-        var px2=pc.getContext('2d');
-        px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
-        var id=px2.getImageData(0,0,1,1).data;
-        var hex=r2h(id[0],id[1],id[2]);
-        var d=nearDMC(hex);
-        var dot=document.getElementById('ref-color-dot');
-        var txt=document.getElementById('ref-color-txt');
-        var prev=document.getElementById('ref-color-preview');
-        prev.style.display='flex';
-        dot.style.background=d.hex;
-        txt.textContent='DMC '+d.num+' '+d.name;
-      }
-    });
-    refCV.addEventListener('mouseup',function(){refDrag=false;});
-    refCV.addEventListener('wheel',function(e){
-      e.preventDefault();
-      refZL=Math.max(0.5,Math.min(20,refZL*(e.deltaY<0?1.2:1/1.2)));
+window.toggleRefPick=function(){
+  refPicking=!refPicking;
+  var btn=document.getElementById('ref-pick-btn');
+  var cv=document.getElementById('ref-cv');
+  if(refPicking){btn.classList.add('active');cv.classList.add('ref-picking');}
+  else{btn.classList.remove('active');cv.classList.remove('ref-picking');}
+};
+
+if(refCV){
+  // Pan
+  var refDrag=false,refDragSt=null;
+  refCV.addEventListener('mousedown',function(e){
+    if(refPicking){
+      // Pick color from reference image
+      var rc=refCV.getBoundingClientRect();
+      var px=(e.clientX-rc.left)/refZL+refVX;
+      var py=(e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY;
+      px=Math.max(0,Math.min(refNatW-1,Math.round(px)));
+      py=Math.max(0,Math.min(refNatH-1,Math.round(py)));
+      // Get pixel color from source
+      var pc=document.createElement('canvas');pc.width=1;pc.height=1;
+      var px2=pc.getContext('2d');
+      px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
+      var id=px2.getImageData(0,0,1,1).data;
+      var hex=r2h(id[0],id[1],id[2]);
+      // Add to palette if not exists
+      var d=nearDMC(hex);
+      var dmcHex=d.hex;
+      if(palette.indexOf(dmcHex)<0){palette.push(dmcHex);dmcCache={};}
+      SI=palette.indexOf(dmcHex);
+      updPal();
+      // Show preview
+      var prev=document.getElementById('ref-color-preview');
+      var dot=document.getElementById('ref-color-dot');
+      var txt=document.getElementById('ref-color-txt');
+      prev.style.display='flex';
+      dot.style.background=dmcHex;
+      txt.textContent='DMC '+d.num+' '+d.name;
+      // Auto switch to paint tool
+      var pbtn=document.getElementById('t-paint');
+      if(pbtn)setTool('paint',pbtn);
+    } else {
+      refDrag=true;
+      refDragSt={x:e.clientX,y:e.clientY,vx:refVX,vy:refVY};
+    }
+  });
+  refCV.addEventListener('mousemove',function(e){
+    if(refDrag&&refDragSt){
+      var dxPx=(e.clientX-refDragSt.x)/refZL;
+      var dyPx=(e.clientY-refDragSt.y)*refNatH/refCV.height/refZL;
+      refVX=Math.max(0,refDragSt.vx-dxPx);
+      refVY=Math.max(0,refDragSt.vy-dyPx);
       renderRef();
-    },{passive:false});
-  }
+    }
+    if(refPicking){
+      // Show color under cursor
+      var rc=refCV.getBoundingClientRect();
+      var px=Math.round((e.clientX-rc.left)/refZL+refVX);
+      var py=Math.round((e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY);
+      px=Math.max(0,Math.min(refNatW-1,px));
+      py=Math.max(0,Math.min(refNatH-1,py));
+      var pc=document.createElement('canvas');pc.width=1;pc.height=1;
+      var px2=pc.getContext('2d');
+      px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
+      var id=px2.getImageData(0,0,1,1).data;
+      var hex=r2h(id[0],id[1],id[2]);
+      var d=nearDMC(hex);
+      var dot=document.getElementById('ref-color-dot');
+      var txt=document.getElementById('ref-color-txt');
+      var prev=document.getElementById('ref-color-preview');
+      prev.style.display='flex';
+      dot.style.background=d.hex;
+      txt.textContent='DMC '+d.num+' '+d.name;
+    }
+  });
+  refCV.addEventListener('mouseup',function(){refDrag=false;});
+  refCV.addEventListener('wheel',function(e){
+    e.preventDefault();
+    refZL=Math.max(0.5,Math.min(20,refZL*(e.deltaY<0?1.2:1/1.2)));
+    renderRef();
+  },{passive:false});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
 else setTimeout(boot,0);
