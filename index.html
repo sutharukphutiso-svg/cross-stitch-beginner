@@ -96,6 +96,11 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
 #right::-webkit-scrollbar{width:4px}
 #right::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
+/* REF PANEL */
+#ref-cv{cursor:crosshair}
+#ref-cv.ref-picking{cursor:crosshair;outline:2px solid var(--gold2)}
+#ref-pick-btn.active{background:var(--gold2);color:#000;border-color:var(--gold2)}
+
 /* PROGRESS */
 #prog-wrap{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--border2);border-radius:8px;padding:18px 24px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.15);min-width:180px;z-index:10}
 #prog-bar{width:100%;height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden}
@@ -219,6 +224,27 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
 
 <!-- RIGHT PANEL -->
 <div id="right">
+  <!-- Reference Image Panel -->
+  <div class="sec-h" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px">
+    ภาพต้นฉบับ
+    <span style="float:right;font-weight:400;color:var(--muted);cursor:pointer" onclick="toggleRef()" id="ref-toggle">▼</span>
+  </div>
+  <div id="ref-panel" style="margin-bottom:8px">
+    <div style="position:relative;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#f0f0f0;cursor:crosshair" id="ref-wrap">
+      <canvas id="ref-cv" style="display:block;width:100%;image-rendering:pixelated"></canvas>
+      <div id="ref-empty" style="padding:16px;text-align:center;font-size:10px;color:var(--muted)">อัปโหลดภาพเพื่อดูที่นี่</div>
+    </div>
+    <div style="display:flex;gap:3px;margin-top:4px">
+      <button class="btn" style="flex:1;padding:3px;font-size:10px" onclick="refZoom(1.5)">＋</button>
+      <button class="btn" style="flex:1;padding:3px;font-size:10px" onclick="refZoom(1/1.5)">－</button>
+      <button class="btn" style="flex:1;padding:3px;font-size:10px" onclick="refFit()">Fit</button>
+      <button class="btn act" id="ref-pick-btn" style="flex:1;padding:3px;font-size:10px" onclick="toggleRefPick()">💉Pick</button>
+    </div>
+    <div id="ref-color-preview" style="display:none;margin-top:4px;padding:4px 6px;border-radius:4px;font-size:10px;display:flex;align-items:center;gap:6px">
+      <div id="ref-color-dot" style="width:16px;height:16px;border-radius:3px;border:1px solid var(--border2)"></div>
+      <span id="ref-color-txt" style="color:var(--muted)">คลิกภาพเพื่อดูดสี</span>
+    </div>
+  </div>
   <div class="sec-h" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:3px">Palette</div>
   <div id="pal-grid"></div>
   <div style="display:flex;gap:3px;margin-bottom:8px">
@@ -568,6 +594,12 @@ function loadImgFile(f){
       document.getElementById('thumb').src=ev.target.result;document.getElementById('thumb').style.display='block';
       showBadge('✓ โหลดสำเร็จ '+imgSrc.naturalWidth+'×'+imgSrc.naturalHeight,'ok');
       detectedBlock=0;
+      // Show reference image
+      refNatW=imgSrc.naturalWidth;refNatH=imgSrc.naturalHeight;
+      refZL=1;refVX=0;refVY=0;
+      document.getElementById('ref-empty').style.display='none';
+      document.getElementById('ref-cv').style.display='block';
+      setTimeout(renderRef,50);
     };
     imgSrc.src=ev.target.result;
   };
@@ -1046,6 +1078,121 @@ function boot(){
   grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
   initEvents();updStatus();updPal();
   setTimeout(fitZoom,100);
+
+  // Reference panel setup
+  var refCV=document.getElementById('ref-cv');
+  var refCTX=refCV?refCV.getContext('2d'):null;
+  var refZL=1,refVX=0,refVY=0;
+  var refPicking=false;
+  var refNatW=0,refNatH=0;
+
+  function renderRef(){
+    if(!imgSrc||!refCTX)return;
+    var wrap=document.getElementById('ref-wrap');
+    var dw=wrap.offsetWidth||160,dh=Math.round(dw*refNatH/refNatW)||dw;
+    // Cap display height
+    dh=Math.min(dh,220);
+    refCV.width=dw;refCV.height=dh;
+    refCV.style.height=dh+'px';
+    refCTX.fillStyle='#fff';refCTX.fillRect(0,0,dw,dh);
+    var ds=refZL;
+    var sx=refVX,sy=refVY,sw2=dw/ds,sh2=dh/ds;
+    refCTX.drawImage(imgSrc,sx,sy,sw2,sh2,0,0,dw,dh);
+  }
+
+  window.toggleRef=function(){
+    var p=document.getElementById('ref-panel');
+    var t=document.getElementById('ref-toggle');
+    p.style.display=p.style.display==='none'?'block':'none';
+    t.textContent=p.style.display==='none'?'▶':'▼';
+  };
+  window.refZoom=function(f){
+    refZL=Math.max(0.5,Math.min(20,refZL*f));renderRef();
+  };
+  window.refFit=function(){refZL=1;refVX=0;refVY=0;renderRef();};
+
+  window.toggleRefPick=function(){
+    refPicking=!refPicking;
+    var btn=document.getElementById('ref-pick-btn');
+    var cv=document.getElementById('ref-cv');
+    if(refPicking){btn.classList.add('active');cv.classList.add('ref-picking');}
+    else{btn.classList.remove('active');cv.classList.remove('ref-picking');}
+  };
+
+  if(refCV){
+    // Pan
+    var refDrag=false,refDragSt=null;
+    refCV.addEventListener('mousedown',function(e){
+      if(refPicking){
+        // Pick color from reference image
+        var rc=refCV.getBoundingClientRect();
+        var px=(e.clientX-rc.left)/refZL+refVX;
+        var py=(e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY;
+        px=Math.max(0,Math.min(refNatW-1,Math.round(px)));
+        py=Math.max(0,Math.min(refNatH-1,Math.round(py)));
+        // Get pixel color from source
+        var pc=document.createElement('canvas');pc.width=1;pc.height=1;
+        var px2=pc.getContext('2d');
+        px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
+        var id=px2.getImageData(0,0,1,1).data;
+        var hex=r2h(id[0],id[1],id[2]);
+        // Add to palette if not exists
+        var d=nearDMC(hex);
+        var dmcHex=d.hex;
+        if(palette.indexOf(dmcHex)<0){palette.push(dmcHex);dmcCache={};}
+        SI=palette.indexOf(dmcHex);
+        updPal();
+        // Show preview
+        var prev=document.getElementById('ref-color-preview');
+        var dot=document.getElementById('ref-color-dot');
+        var txt=document.getElementById('ref-color-txt');
+        prev.style.display='flex';
+        dot.style.background=dmcHex;
+        txt.textContent='DMC '+d.num+' '+d.name;
+        // Auto switch to paint tool
+        var pbtn=document.getElementById('t-paint');
+        if(pbtn)setTool('paint',pbtn);
+      } else {
+        refDrag=true;
+        refDragSt={x:e.clientX,y:e.clientY,vx:refVX,vy:refVY};
+      }
+    });
+    refCV.addEventListener('mousemove',function(e){
+      if(refDrag&&refDragSt){
+        var dxPx=(e.clientX-refDragSt.x)/refZL;
+        var dyPx=(e.clientY-refDragSt.y)*refNatH/refCV.height/refZL;
+        refVX=Math.max(0,refDragSt.vx-dxPx);
+        refVY=Math.max(0,refDragSt.vy-dyPx);
+        renderRef();
+      }
+      if(refPicking){
+        // Show color under cursor
+        var rc=refCV.getBoundingClientRect();
+        var px=Math.round((e.clientX-rc.left)/refZL+refVX);
+        var py=Math.round((e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY);
+        px=Math.max(0,Math.min(refNatW-1,px));
+        py=Math.max(0,Math.min(refNatH-1,py));
+        var pc=document.createElement('canvas');pc.width=1;pc.height=1;
+        var px2=pc.getContext('2d');
+        px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
+        var id=px2.getImageData(0,0,1,1).data;
+        var hex=r2h(id[0],id[1],id[2]);
+        var d=nearDMC(hex);
+        var dot=document.getElementById('ref-color-dot');
+        var txt=document.getElementById('ref-color-txt');
+        var prev=document.getElementById('ref-color-preview');
+        prev.style.display='flex';
+        dot.style.background=d.hex;
+        txt.textContent='DMC '+d.num+' '+d.name;
+      }
+    });
+    refCV.addEventListener('mouseup',function(){refDrag=false;});
+    refCV.addEventListener('wheel',function(e){
+      e.preventDefault();
+      refZL=Math.max(0.5,Math.min(20,refZL*(e.deltaY<0?1.2:1/1.2)));
+      renderRef();
+    },{passive:false});
+  }
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
 else setTimeout(boot,0);
