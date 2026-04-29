@@ -277,6 +277,9 @@ var ZL=1,VX=0,VY=0;
 var tool='move',painting=false,panStart=null;
 var hist=[];
 var imgSrc=null;
+// Reference panel state (global)
+var refNatW=0,refNatH=0,refZL=1,refVX=0,refVY=0,refPicking=false;
+var refCV,refCTX;
 var detectedBlock=0;
 var gc,ctx,area,refC,refX;
 
@@ -954,7 +957,7 @@ function doConvert(){
       setTimeout(function(){
         prog.style.display='none';
         showBadge('✦ '+palette.length+' สี | '+COLS+'×'+ROWS+' stitches','ok');
-        document.getElementById('sNC').value=palette.length;document.getElementById('vNC').textContent=palette.length;
+        // (sNC not auto-updated after convert)
       },300);
     }catch(err){
       prog.style.display='none';showBadge('❌ '+err.message,'err');console.error(err);
@@ -1221,11 +1224,8 @@ function boot(){
   setTimeout(fitZoom,100);
 
   // Reference panel setup
-  var refCV=document.getElementById('ref-cv');
-  var refCTX=refCV?refCV.getContext('2d'):null;
-  var refZL=1,refVX=0,refVY=0;
-  var refPicking=false;
-  var refNatW=0,refNatH=0;
+  refCV=document.getElementById('ref-cv');
+  refCTX=refCV?refCV.getContext('2d'):null;
 
   function renderRef(){
     if(!imgSrc||!refCTX)return;
