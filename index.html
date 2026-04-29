@@ -82,8 +82,8 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
 .zi{font-size:11px;color:var(--muted);min-width:40px;text-align:center}
 
 /* Canvas */
-#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#e8e4dc;display:flex;align-items:center;justify-content:center}
-#canvas-wrap::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.4));pointer-events:none}
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#ffffff;display:flex;align-items:center;justify-content:center}
+
 #gc{position:absolute;top:0;left:0;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair}
 #ov{position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated}
 
@@ -140,7 +140,7 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
 #progress-text{font-size:12px;color:var(--cream-dim);margin-bottom:5px}
 
 /* Embroidery hoop preview effect */
-.hoop-bg{position:absolute;pointer-events:none;opacity:0.06;font-size:400px;top:50%;left:50%;transform:translate(-50%,-50%);user-select:none;line-height:1;color:#b0a890}
+
 </style>
 </head>
 <body>
@@ -289,7 +289,7 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
   </div>
 
   <div id="canvas-wrap">
-    <div class="hoop-bg">◯</div>
+    
     <canvas id="gc"></canvas>
     <canvas id="ov"></canvas>
     <div id="progress-wrap">
@@ -474,7 +474,7 @@ function render(){
 
   ctx.clearRect(0,0,W,H);
   // White fabric background for empty cells
-  ctx.fillStyle='#f5eedc';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
 
   for(var r=0;r<ROWS;r++){
     for(var c=0;c<COLS;c++){
@@ -1260,7 +1260,7 @@ function xPNG(){
   var sz=12, W=COLS*sz, H=ROWS*sz;
   var ec=document.createElement('canvas');ec.width=W;ec.height=H;
   var ex=ec.getContext('2d');
-  ex.fillStyle='#f5eedc';ex.fillRect(0,0,W,H);
+  ex.fillStyle='#ffffff';ex.fillRect(0,0,W,H);
   for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
     var ci=grid[r][c];
     if(ci>=0&&ci<palette.length){ex.fillStyle=palette[ci];ex.fillRect(c*sz,r*sz,sz,sz);}
