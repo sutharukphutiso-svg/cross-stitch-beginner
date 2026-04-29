@@ -710,6 +710,9 @@ function matchRatio(){
   document.getElementById('lock').checked=false;
 }
 
+// Store detected pixel art block size for use in doConvert
+var detectedBlockSize=0;
+
 // ── AUTO SIZE: วิเคราะห์ pixel art block size ──────────────────────
 function autoSize(){
   if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
@@ -779,6 +782,9 @@ function autoSize(){
     else{targetH=base;targetW=Math.max(20,Math.round(base*sw/sh));}
   }
 
+  // Store for doConvert to use center-pixel sampling
+  detectedBlockSize = isPixelArt ? bestBlock : 0;
+
   // Apply — update sliders, labels, AND preview immediately
   document.getElementById('sW').value=targetW;document.getElementById('vW').textContent=targetW;
   document.getElementById('sH').value=targetH;document.getElementById('vH').textContent=targetH;
@@ -803,13 +809,43 @@ function autoColors(){
   if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
   var hint=document.getElementById('auto-color-hint');
 
-  // Sample at reasonable size (larger = more accurate color counting)
-  var acW=Math.min(refSrc.naturalWidth,300),acH=Math.min(refSrc.naturalHeight,300);
+  // For pixel art: sample at exactly grid size using center-pixel method
+  // This gives exact colors used, not blended averages
+  var curW=+document.getElementById('sW').value||40;
+  var curH=+document.getElementById('sH').value||40;
+  var acMax=Math.min(refSrc.naturalWidth,800);
+  var acScale=Math.min(1,acMax/Math.max(refSrc.naturalWidth,refSrc.naturalHeight));
+  var acW=Math.round(refSrc.naturalWidth*acScale),acH=Math.round(refSrc.naturalHeight*acScale);
   var sc=document.createElement('canvas');sc.width=acW;sc.height=acH;
   var sx=sc.getContext('2d');
   sx.fillStyle='#ffffff';sx.fillRect(0,0,acW,acH);
   sx.drawImage(refSrc,0,0,acW,acH);
-  var px=sx.getImageData(0,0,acW,acH).data;
+  var srcFull=sx.getImageData(0,0,acW,acH).data;
+  // Sample at grid resolution using center-pixel per block
+  var px=new Uint8ClampedArray(curW*curH*4);
+  var useCenter=(detectedBlockSize>=2)||(acW/curW>=2);
+  for(var gr=0;gr<curH;gr++){
+    for(var gc2=0;gc2<curW;gc2++){
+      var gx0=Math.floor(gc2*acW/curW),gx1=Math.floor((gc2+1)*acW/curW);
+      var gy0=Math.floor(gr*acH/curH),gy1=Math.floor((gr+1)*acH/curH);
+      gx1=Math.max(gx1,gx0+1);gy1=Math.max(gy1,gy0+1);
+      var sr,sg2,sb2,sa;
+      if(useCenter){
+        var gcx=Math.floor((gx0+gx1)/2),gcy=Math.floor((gy0+gy1)/2);
+        var gci=(gcy*acW+gx0)*4; // use left edge of center row for correct sampling
+        gci=(gcy*acW+gx0)*4;
+        sr=srcFull[(gcy*acW+gx0)*4];sg2=srcFull[(gcy*acW+gx0)*4+1];sb2=srcFull[(gcy*acW+gx0)*4+2];sa=srcFull[(gcy*acW+gx0)*4+3];
+      } else {
+        var tr2=0,tg2=0,tb2=0,ta2=0,n2=0;
+        for(var gy=gy0;gy<gy1;gy++)for(var gx=gx0;gx<gx1;gx++){
+          var gi=(gy*acW+gx)*4;tr2+=srcFull[gi];tg2+=srcFull[gi+1];tb2+=srcFull[gi+2];ta2+=srcFull[gi+3];n2++;
+        }
+        sr=Math.round(tr2/n2);sg2=Math.round(tg2/n2);sb2=Math.round(tb2/n2);sa=Math.round(ta2/n2);
+      }
+      var pi=(gr*curW+gc2)*4;
+      px[pi]=sr;px[pi+1]=sg2;px[pi+2]=sb2;px[pi+3]=sa;
+    }
+  }
 
   // Collect unique colors (quantized to 5-bit per channel)
   var colorSet={};
@@ -916,17 +952,68 @@ function doConvert(){
 
       pf.style.width='15%';pt.textContent='กำลังลดขนาดภาพ...';
 
-      // ── STEP 1: Render image at grid size ──
-      refC.width=COLS; refC.height=ROWS;
-      refX.clearRect(0,0,COLS,ROWS);
+      // ── STEP 1: Smart downsample ──
+      // Draw image at NATIVE size first, then sample per-block
+      var natW=refSrc.naturalWidth, natH=refSrc.naturalHeight;
+      var maxNat=Math.min(natW,1600); // cap for performance
+      var natScale=Math.min(1, maxNat/Math.max(natW,natH));
+      var drawW=Math.round(natW*natScale), drawH=Math.round(natH*natScale);
+
+      // Draw on white bg (for alpha detection)
+      refC.width=drawW; refC.height=drawH;
+      refX.clearRect(0,0,drawW,drawH);
       refX.fillStyle='#ffffff';
-      refX.fillRect(0,0,COLS,ROWS);
-      refX.drawImage(refSrc,0,0,COLS,ROWS);
-      var pxW=refX.getImageData(0,0,COLS,ROWS).data;
+      refX.fillRect(0,0,drawW,drawH);
+      refX.drawImage(refSrc,0,0,drawW,drawH);
+      var srcW=refX.getImageData(0,0,drawW,drawH).data;
+
+      // Draw on black bg (for alpha detection)
       refX.fillStyle='#000000';
-      refX.fillRect(0,0,COLS,ROWS);
-      refX.drawImage(refSrc,0,0,COLS,ROWS);
-      var pxB=refX.getImageData(0,0,COLS,ROWS).data;
+      refX.fillRect(0,0,drawW,drawH);
+      refX.drawImage(refSrc,0,0,drawW,drawH);
+      var srcB=refX.getImageData(0,0,drawW,drawH).data;
+
+      // Detect pixel art mode: use autoSize result or compute from block ratio
+      var bW2=drawW/COLS, bH2=drawH/ROWS;
+      var pixelArtLikely = (detectedBlockSize>=2) ||
+                           (bW2>=2 && bH2>=2 && Math.abs(bW2-Math.round(bW2))<0.4);
+
+      // Per-block sampling function
+      // For pixel art: take center pixel (most accurate)
+      // For flat art: take median/average of block
+      function sampleBlock(col,row,srcData,W,H,useCenter){
+        var x0=Math.floor(col*W/COLS), x1=Math.floor((col+1)*W/COLS);
+        var y0=Math.floor(row*H/ROWS), y1=Math.floor((row+1)*H/ROWS);
+        x1=Math.max(x1,x0+1); y1=Math.max(y1,y0+1);
+        if(useCenter){
+          // Take center pixel only — preserves pixel art colors exactly
+          var cx=Math.floor((x0+x1)/2), cy=Math.floor((y0+y1)/2);
+          var ci=(cy*W+cx)*4;
+          return[srcData[ci],srcData[ci+1],srcData[ci+2],srcData[ci+3]];
+        }
+        // Average the block
+        var tr=0,tg=0,tb=0,ta=0,n=0;
+        for(var y=y0;y<y1;y++){
+          for(var x=x0;x<x1;x++){
+            var i2=(y*W+x)*4;
+            tr+=srcData[i2];tg+=srcData[i2+1];tb+=srcData[i2+2];ta+=srcData[i2+3];n++;
+          }
+        }
+        return[Math.round(tr/n),Math.round(tg/n),Math.round(tb/n),Math.round(ta/n)];
+      }
+
+      // Build pxW and pxB as flat arrays (same format as before)
+      var pxW=new Uint8ClampedArray(COLS*ROWS*4);
+      var pxB=new Uint8ClampedArray(COLS*ROWS*4);
+      for(var rr=0;rr<ROWS;rr++){
+        for(var cc=0;cc<COLS;cc++){
+          var sw2=sampleBlock(cc,rr,srcW,drawW,drawH,pixelArtLikely);
+          var sb2=sampleBlock(cc,rr,srcB,drawW,drawH,pixelArtLikely);
+          var bi2=(rr*COLS+cc)*4;
+          pxW[bi2]=sw2[0];pxW[bi2+1]=sw2[1];pxW[bi2+2]=sw2[2];pxW[bi2+3]=sw2[3];
+          pxB[bi2]=sb2[0];pxB[bi2+1]=sb2[1];pxB[bi2+2]=sb2[2];pxB[bi2+3]=sb2[3];
+        }
+      }
 
       pf.style.width='25%';pt.textContent='ตรวจจับความโปร่งใส...';
 
@@ -1095,33 +1182,63 @@ function doConvert(){
 
       pf.style.width='90%';pt.textContent='กรอง Noise...';
 
-      // ── STEP 7: Noise filter (remove isolated 1-2 pixel islands) ──
+      // ── STEP 7: Noise filter ──────────────────────────────────────
       var chkNoise=document.getElementById('chkNoise').checked;
       if(chkNoise){
+        // Pass A: find bounding box of main body (connected fg region)
+        // flood fill from center of grid to find main connected component
+        var mainBody=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
+        var cx0=Math.floor(COLS/2), cy0=Math.floor(ROWS/2);
+        // find nearest filled cell to center
+        var startR=-1,startC=-1,bestDist=1e9;
+        for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+          if(grid[r][c]>=0){
+            var d2=(r-cy0)*(r-cy0)+(c-cx0)*(c-cx0);
+            if(d2<bestDist){bestDist=d2;startR=r;startC=c;}
+          }
+        }
+        if(startR>=0){
+          // BFS from center to mark main body (allow crossing any filled cell)
+          var bfsQ=[[startR,startC]];
+          mainBody[startR][startC]=true;
+          var bi=0;
+          while(bi<bfsQ.length){
+            var bp=bfsQ[bi++],br=bp[0],bc=bp[1];
+            [[br-1,bc],[br+1,bc],[br,bc-1],[br,bc+1]].forEach(function(n){
+              var nr=n[0],nc=n[1];
+              if(nr<0||nr>=ROWS||nc<0||nc>=COLS||mainBody[nr][nc]||grid[nr][nc]<0)return;
+              mainBody[nr][nc]=true;
+              bfsQ.push([nr,nc]);
+            });
+          }
+        }
+
+        // Pass B: erase cells NOT in main body (isolated specks)
+        for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+          if(grid[r][c]>=0&&!mainBody[r][c])grid[r][c]=-1;
+        }
+
+        // Pass C: smooth isolated single pixels inside main body
         var changed=true, pass=0;
-        while(changed && pass<3){
-          changed=false; pass++;
+        while(changed&&pass<4){
+          changed=false;pass++;
           for(var r=1;r<ROWS-1;r++){
             for(var c=1;c<COLS-1;c++){
               var ci2=grid[r][c];
               if(ci2<0)continue;
-              // Count neighbors with SAME color
-              var sameN=0, nbColors={};
-              var dirs=[[r-1,c],[r+1,c],[r,c-1],[r,c+1],[r-1,c-1],[r-1,c+1],[r+1,c-1],[r+1,c+1]];
-              dirs.forEach(function(d){
-                var nr2=d[0],nc2=d[1];
-                if(nr2<0||nr2>=ROWS||nc2<0||nc2>=COLS)return;
-                var nc3=grid[nr2][nc2];
+              var sameN=0,nbColors={};
+              [[r-1,c],[r+1,c],[r,c-1],[r,c+1],[r-1,c-1],[r-1,c+1],[r+1,c-1],[r+1,c+1]].forEach(function(d){
+                if(d[0]<0||d[0]>=ROWS||d[1]<0||d[1]>=COLS)return;
+                var nc3=grid[d[0]][d[1]];
                 if(nc3===ci2)sameN++;
                 if(nc3>=0)nbColors[nc3]=(nbColors[nc3]||0)+1;
               });
-              // If isolated (0-1 same-color neighbors), replace with most common neighbor
               if(sameN<=1){
                 var bestNb=-1,bestNbCnt=0;
                 Object.entries(nbColors).forEach(function(e){
                   if(+e[0]!==ci2&&+e[1]>bestNbCnt){bestNbCnt=+e[1];bestNb=+e[0];}
                 });
-                if(bestNb>=0&&bestNbCnt>=3){grid[r][c]=bestNb;changed=true;}
+                if(bestNb>=0&&bestNbCnt>=2){grid[r][c]=bestNb;changed=true;}
               }
             }
           }
@@ -1135,10 +1252,17 @@ function doConvert(){
       updPal();updDMC();
       fitZoom();
 
+      // Count actual colors used in grid
+      var usedSet=new Set();
+      for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)usedSet.add(grid[r][c]);
+
       setTimeout(function(){
         pw.style.display='none';
         badge.className='';
         badge.textContent='✦ แปลงสำเร็จ! '+palette.length+' สี | '+COLS+'×'+ROWS+' stitches';
+        // Update sNC to reflect actual color count for next time
+        document.getElementById('sNC').value=palette.length;
+        document.getElementById('vNC').textContent=palette.length;
         updSt();
       },300);
 
