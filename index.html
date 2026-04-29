@@ -233,7 +233,8 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
           <option value="black">⬛ ดำ</option>
           <option value="none">✕ ไม่ลบ</option>
         </select>
-        <div class="cb-row" style="margin-top:4px"><input type="checkbox" id="chkNoise" checked><label for="chkNoise">กรอง Noise รอบนอก</label></div>
+        <div class="cb-row" style="margin-top:4px"><input type="checkbox" id="chkNoise" checked><label for="chkNoise">กรอง Noise/specks รอบนอก</label></div>
+        <div class="cb-row"><input type="checkbox" id="chkKeepAll"><label for="chkKeepAll">เก็บ sparkle/paw รอบนอก</label></div>
         <div class="cb-row"><input type="checkbox" id="chkHSL" checked><label for="chkHSL">ใช้ HSL distance (แยกสีดีขึ้น)</label></div>
       </div>
     </div>
@@ -734,24 +735,51 @@ function autoSize(){
   var hint=document.getElementById('auto-size-hint');
   var sw=refSrc.naturalWidth, sh=refSrc.naturalHeight;
 
-  // Draw at native resolution (cap 1200)
+  // Detect bg color from corners to handle dark-bg images
+  var testC=document.createElement('canvas');testC.width=10;testC.height=10;
+  var testX=testC.getContext('2d');
+  testX.drawImage(refSrc,0,0,10,10);
+  var cornerPx=testX.getImageData(0,0,10,10).data;
+  var cornerLum=(0.299*cornerPx[0]+0.587*cornerPx[1]+0.114*cornerPx[2]);
+  var isDarkBg=(cornerLum<40);
+
+  // Draw at native resolution (cap 1200), white fill for light bg
   var cap=1200, scl=Math.min(1,cap/Math.max(sw,sh));
   var W=Math.round(sw*scl), H=Math.round(sh*scl);
   var sc=document.createElement('canvas');sc.width=W;sc.height=H;
   var sx=sc.getContext('2d');
-  sx.fillStyle='#ffffff';sx.fillRect(0,0,W,H);
+  sx.fillStyle=isDarkBg?'#000000':'#ffffff';
+  sx.fillRect(0,0,W,H);
   sx.drawImage(refSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
 
+  // For dark bg: find bounding box of non-black content
+  var x0a=0,y0a=0,x1a=W,y1a=H;
+  if(isDarkBg){
+    x0a=W;y0a=H;x1a=0;y1a=0;
+    for(var ry=0;ry<H;ry++) for(var rx=0;rx<W;rx++){
+      var ri=(ry*W+rx)*4;
+      var lm=0.299*px[ri]+0.587*px[ri+1]+0.114*px[ri+2];
+      if(lm>30){if(rx<x0a)x0a=rx;if(rx>x1a)x1a=rx;if(ry<y0a)y0a=ry;if(ry>y1a)y1a=ry;}
+    }
+    if(x1a<=x0a){x0a=0;y0a=0;x1a=W;y1a=H;} // fallback
+  }
+  // Crop the search area to content region only
+  var cW=x1a-x0a||W, cH=y1a-y0a||H;
+  // Override W,H for block size search
+  var searchW=cW, searchH=cH;
+  // Store offset for later
+  var searchOX=x0a, searchOY=y0a;
+
   // ── Variance score per block size ────────────────────────────────
   var varScores=[];
-  var maxB=Math.min(80, Math.floor(Math.min(W,H)/6));
-  for(var b=8;b<=maxB;b++){   // start at 8 — skip JPEG compression artifact range
+  var maxB=Math.min(100, Math.floor(Math.min(searchW,searchH)/6));
+  for(var b=8;b<=maxB;b++){
     var totalVar=0, count=0;
-    var cols=Math.floor(W/b), rows=Math.floor(H/b);
+    var cols=Math.floor(searchW/b), rows=Math.floor(searchH/b);
     for(var r=0;r<rows;r+=3){
       for(var c=0;c<cols;c+=3){
-        var x0=c*b,y0=r*b;
+        var x0=searchOX+c*b,y0=searchOY+r*b;
         var sumR=0,sumG=0,sumB=0,sq2R=0,sq2G=0,sq2B=0,n=0;
         for(var dy=0;dy<b;dy++){
           for(var dx=0;dx<b;dx++){
@@ -777,7 +805,7 @@ function autoSize(){
     var cur=varScores[i];
     if(cur.b<5)continue;  // skip tiny blocks (JPEG noise)
     var realB=cur.b/scl;
-    var sW=Math.round(sw/realB), sH=Math.round(sh/realB);
+    var sW=Math.round(searchW/realB), sH=Math.round(searchH/realB);
     if(sW<15||sW>150)continue;
 
     // Is it a local minimum? (lower than both ±2 neighbors)
@@ -803,7 +831,7 @@ function autoSize(){
   if(!candidates.length){
     detectedBlockSize=0;
     var base=Math.max(sw,sh)>1500?80:Math.max(sw,sh)>600?60:40;
-    _applySize(base,Math.round(base*sh/sw),false,0,hint);
+    var fH=Math.round(base*(cH||sh)/(cW||sw)); _applySize(base,Math.max(10,Math.min(150,fH)),false,0,hint);
     return;
   }
 
@@ -1256,9 +1284,12 @@ function doConvert(){
       // ── STEP 7: Noise filter ──────────────────────────────────────
       var chkNoise=document.getElementById('chkNoise').checked;
       if(chkNoise){
+        // If user wants to keep sparkle/paw, skip BFS body detection
+        var keepAll=document.getElementById('chkKeepAll')&&document.getElementById('chkKeepAll').checked;
+
         // Pass A: find bounding box of main body (connected fg region)
-        // flood fill from center of grid to find main connected component
-        var mainBody=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
+        var mainBody=Array.from({length:ROWS},function(){return new Array(COLS).fill(true);}); // default: keep all
+        if(!keepAll){
         var cx0=Math.floor(COLS/2), cy0=Math.floor(ROWS/2);
         // find nearest filled cell to center
         var startR=-1,startC=-1,bestDist=1e9;
@@ -1302,6 +1333,8 @@ function doConvert(){
               if(grid[r][c]===ci3)grid[r][c]=-1;
           }
         }
+
+        } // end if(!keepAll)
 
         // Pass C: smooth isolated single pixels inside main body
         var changed=true, pass=0;
