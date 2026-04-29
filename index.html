@@ -638,8 +638,11 @@ function autoSize(){
   }
   var best=cands[0];
   detectedBlock=Math.round(best.b/scl);
+  // Snap W and H to same value if within 5% of each other (square pixel art)
+  var sw2=best.sw, sh2=best.sh;
+  if(Math.abs(sw2-sh2)/(Math.max(sw2,sh2)||1)<0.06){var avg=Math.round((sw2+sh2)/2);sw2=avg;sh2=avg;}
   // Apply and reset grid
-  COLS=best.sw;ROWS=best.sh;
+  COLS=sw2;ROWS=sh2;
   document.getElementById('sW').value=COLS;document.getElementById('vW').textContent=COLS;
   document.getElementById('sH').value=ROWS;document.getElementById('vH').textContent=ROWS;
   document.getElementById('lockAR').checked=false;
@@ -796,8 +799,9 @@ function doConvert(){
           if(!bg)fg.push([rW,gW,bW2]);
         }
       }
-      // Flood fill bg from edges (white mode)
-      if(!hasAlpha&&bgMode==='white'){
+      // Flood fill bg from edges — ONLY for images without alpha AND explicit black bg
+      // For JPEG (no alpha, white bg): skip flood fill to avoid removing white parts of subject
+      if(!hasAlpha&&bgMode==='black'){
         var vis=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);}),newBg=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
         var stk=[];
         function seedEdge(r,c){var p=pg[r][c],lm=0.299*p[0]+0.587*p[1]+0.114*p[2],st=Math.max(p[0],p[1],p[2])-Math.min(p[0],p[1],p[2]);if(lm>210&&st<30&&!vis[r][c]){vis[r][c]=true;stk.push([r,c]);}}
