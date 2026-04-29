@@ -581,146 +581,96 @@ function syncH(){var v=+document.getElementById('sH').value;document.getElementB
 function setSize(w,h){document.getElementById('sW').value=w;document.getElementById('vW').textContent=w;document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;document.getElementById('lockAR').checked=false;}
 function setNC(n){document.getElementById('sNC').value=n;document.getElementById('vNC').textContent=n;}
 
-// ═══════════════ AUTO SIZE (Variance Method) ═══════════════
+// ═══════════════ AUTO SIZE (Gradient Alignment Method) ═══════════════
 function autoSize(){
   if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
   var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
-  // Draw at native (cap 1200px)
-  var cap=1200,scl=Math.min(1,cap/Math.max(sw,sh));
+  var hint=document.getElementById('size-hint');
+
+  // Draw at capped size for performance
+  var cap=1000,scl=Math.min(1,cap/Math.max(sw,sh));
   var W=Math.round(sw*scl),H=Math.round(sh*scl);
   var sc=document.createElement('canvas');sc.width=W;sc.height=H;
   var sx=sc.getContext('2d');
-  // Detect bg from corner
+  sx.imageSmoothingEnabled=false;
+  sx.fillStyle='#fff';sx.fillRect(0,0,W,H);
   sx.drawImage(imgSrc,0,0,W,H);
-  var cpx=sx.getImageData(0,0,4,4).data;
-  var cLum=0.299*cpx[0]+0.587*cpx[1]+0.114*cpx[2];
-  var isDark=cLum<40;
-  sx.fillStyle=isDark?'#000':'#fff';sx.fillRect(0,0,W,H);sx.drawImage(imgSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
 
-  // ── STEP 1: Find content bounding box (exclude bg) ──
-  var x0=W,y0=H,x1=0,y1=0;
-  for(var y=0;y<H;y++) for(var x=0;x<W;x++){
-    var i=(y*W+x)*4;
-    var lm=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
-    var st=Math.max(px[i],px[i+1],px[i+2])-Math.min(px[i],px[i+1],px[i+2]);
-    var isBg=isDark?(lm<25&&st<20):(lm>230&&st<25);
-    if(!isBg){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
-  }
-  if(x1<=x0){x0=0;y0=0;x1=W;y1=H;}
-  var cW=x1-x0,cH=y1-y0;
+  // ── Gradient Alignment Method ──────────────────────────────────────
+  // Compute horizontal gradient per column and vertical gradient per row
+  // For true pixel art block size b: edges concentrate at multiples of b
+  // → score(b) = max phase alignment of gradients
 
-  // ── STEP 2: Variance on content region only ──
+  // Build column gradient sums (sum of |px[x+1]-px[x]| across all rows)
+  var colGrad=new Float32Array(W-1);
+  var rowGrad=new Float32Array(H-1);
+  for(var y=0;y<H;y++){
+    for(var x=0;x<W-1;x++){
+      var i=(y*W+x)*4;
+      colGrad[x]+=(Math.abs(px[i]-px[i+4])+Math.abs(px[i+1]-px[i+5])+Math.abs(px[i+2]-px[i+6]))/3;
+    }
+  }
+  for(var x=0;x<W;x++){
+    for(var y=0;y<H-1;y++){
+      var i=(y*W+x)*4,j=((y+1)*W+x)*4;
+      rowGrad[y]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
+    }
+  }
+  var totalH=0,totalV=0;
+  for(var i=0;i<colGrad.length;i++)totalH+=colGrad[i];
+  for(var i=0;i<rowGrad.length;i++)totalV+=rowGrad[i];
+
+  // Score each block size
   var scores=[];
-  var maxB=Math.min(100,Math.floor(Math.min(cW,cH)/6));
-  for(var b=5;b<=maxB;b++){
-    var cols=Math.floor(cW/b),rows=Math.floor(cH/b);
-    if(cols<4||rows<4)break;
-    var tv=0,cnt=0;
-    for(var r=0;r<rows;r+=2) for(var c=0;c<cols;c+=2){
-      var gx=x0+c*b,gy=y0+r*b;
-      var sr=0,sg=0,sb=0,qr=0,qg=0,qb=0,n=0;
-      for(var dy=0;dy<b;dy++) for(var dx=0;dx<b;dx++){
-        var idx2=((gy+dy)*W+(gx+dx))*4;
-        var rv=px[idx2],gv=px[idx2+1],bv=px[idx2+2];
-        sr+=rv;sg+=gv;sb+=bv;qr+=rv*rv;qg+=gv*gv;qb+=bv*bv;n++;
-      }
-      tv+=((qr/n-(sr/n)*(sr/n))+(qg/n-(sg/n)*(sg/n))+(qb/n-(sb/n)*(sb/n)))/3;cnt++;
+  for(var b=5;b<=Math.min(80,Math.floor(Math.min(W,H)/4));b++){
+    var fw=Math.round(sw/(b/scl));
+    if(fw>150||fw<10)continue;
+    // Find best phase alignment for horizontal
+    var bestH=0;
+    for(var phase=0;phase<b;phase++){
+      var s=0;for(var x=phase;x<W-1;x+=b)s+=colGrad[x];
+      if(s>bestH)bestH=s;
     }
-    // Use FULL image dims for stitch count (not cropped)
-    var fullW=Math.round(sw/(b/scl)),fullH=Math.round(sh/(b/scl));
-    // Also compute cropped count as alternative
-    var cropW=Math.round(cW/b),cropH=Math.round(cH/b);
-    scores.push({b:b,v:cnt>0?tv/cnt:9999,fw:fullW,fh:fullH,cw:cropW,ch:cropH});
+    var bestV=0;
+    for(var phase=0;phase<b;phase++){
+      var s=0;for(var y=phase;y<H-1;y+=b)s+=rowGrad[y];
+      if(s>bestV)bestV=s;
+    }
+    // Normalize by expected sum if edges were random
+    var normH=totalH/(W/b),normV=totalV/(H/b);
+    var score=(normH>0?bestH/normH:0)+(normV>0?bestV/normV:0);
+    scores.push({b:b,score:score,fw:fw,fh:Math.round(sh/(b/scl))});
   }
 
-  // ── STEP 3: Find local minima ──
-  var cands=[];
-  for(var i=2;i<scores.length-2;i++){
-    var cur=scores[i];
-    // Skip if crop result >120 stitches with high variance (JPEG noise)
-    if(cur.fw>120&&cur.v>100)continue;  // filter large stitch count with noisy variance
-    if(cur.fw<15)continue;              // filter too-small results (over-zoomed)
-    if(cur.cw<6)continue;
-    var isMin=true;
-    for(var di=-2;di<=2;di++){
-      if(di===0)continue;var ni=i+di;
-      if(ni<0||ni>=scores.length)continue;
-      if(scores[ni].v<cur.v*0.90){isMin=false;break;}
-    }
-    if(isMin)cands.push(cur);
-  }
-  cands.sort(function(a,b){
-    var aOk=(a.fw>=40&&a.fw<=120)?0:1;
-    var bOk=(b.fw>=40&&b.fw<=120)?0:1;
-    if(aOk!==bOk)return aOk-bOk;
-    return a.v-b.v;
-  });
+  // Filter fw>120 (too many stitches = likely noise), fw<20 (too few)
+  var filtered=scores.filter(function(s){return s.fw<=120&&s.fw>=20;});
+  if(!filtered.length)filtered=scores;
+  filtered.sort(function(a,b){return b.score-a.score;});
 
-  var hint=document.getElementById('size-hint');
-
-  // Filter candidates to 20-120 stitch range
-  var goodCands=cands.filter(function(c){return c.fw>=20&&c.fw<=120;});
-  if(!goodCands.length)goodCands=cands;
-
-  // Prefer 60-110 stitches (ideal cross stitch size)
-  var idealCands=goodCands.filter(function(c){return c.fw>=60&&c.fw<=110;});
-  var best=idealCands.length>0?idealCands[0]:goodCands[0];
-
-  if(!best){
-    var base=Math.max(sw,sh)>1000?80:60;
-    applySz(base,Math.round(base*sh/sw),0);
-    hint.textContent='🖼 Flat art → '+base+'×'+Math.round(base*sh/sw);hint.style.display='block';
+  if(!filtered.length){
+    var base=80;applySz(base,Math.round(base*sh/sw),0);
+    hint.textContent='🖼 ไม่พบ pixel art → ใช้ '+base+'×'+Math.round(base*sh/sw);hint.style.display='block';
     detectedBlock=0;return;
   }
-  var realBlock=Math.round(best.b/scl);
-  detectedBlock=realBlock;
 
-  // Offer both full-image and cropped sizes
-  var fw=best.fw,fh=best.fh,cw2=best.cw,ch2=best.ch;
-  // Snap to square if close
-  function snapSq(w,h){if(Math.abs(w-h)/Math.max(w,h)<0.07){var a=Math.round((w+h)/2);return[a,a];}return[w,h];}
-  var fSnap=snapSq(fw,fh),cSnap=snapSq(cw2,ch2);
-  fw=Math.max(10,Math.min(150,fSnap[0]));fh=Math.max(10,Math.min(150,fSnap[1]));
-  cw2=Math.max(10,Math.min(150,cSnap[0]));ch2=Math.max(10,Math.min(150,cSnap[1]));
+  var best=filtered[0];
+  // Snap to square if aspect ratio close to 1:1
+  if(Math.abs(best.fw-best.fh)/Math.max(best.fw,best.fh)<0.06){var avg=Math.round((best.fw+best.fh)/2);best.fw=avg;best.fh=avg;}
+  best.fw=Math.max(10,Math.min(150,best.fw));
+  best.fh=Math.max(10,Math.min(150,best.fh));
+  detectedBlock=Math.round(best.b/scl);
+  applySz(best.fw,best.fh,detectedBlock);
 
-  // Apply full image size (รวมทุกส่วนของภาพ)
-  applySz(fw,fh,realBlock);
-
-  var msg='🎮 block≈'+realBlock+'px → <b>'+fw+'×'+fh+'</b>';
-  // Other size options
-  cands.slice(1,3).forEach(function(cd){
-    var rb=Math.round(cd.b/scl),fs=snapSq(cd.fw,cd.fh);
-    var fw2=Math.max(10,Math.min(150,fs[0])),fh2=Math.max(10,Math.min(150,fs[1]));
-    msg+=' <span style="cursor:pointer;text-decoration:underline;color:var(--muted)" onclick="applySz('+fw2+','+fh2+','+rb+')">'+fw2+'×'+fh2+'</span>';
+  var msg='🎮 block≈'+detectedBlock+'px → <b>'+best.fw+'×'+best.fh+'</b>';
+  // Show alternatives
+  filtered.slice(1,4).forEach(function(cd){
+    var rb=Math.round(cd.b/scl),fw2=Math.max(10,Math.min(150,cd.fw));
+    msg+=' <span style="cursor:pointer;text-decoration:underline;color:var(--muted)" onclick="applySz('+fw2+','+fw2+','+rb+')">'+fw2+'×'+fw2+'</span>';
   });
-  // Show warning if result seems off (fw < 40)
-  if(best.fw<40){
-    msg+='<br><span style="color:#c0392b;font-size:10px">⚠️ ผลดูเล็กเกินไป — ลองใส่ Block px แล้วกด Apply</span>';
-  }
   hint.innerHTML=msg;hint.style.display='block';
 }
-function applyManualBlock(){
-  if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
-  var blk=parseInt(document.getElementById('manualBlock').value)||0;
-  if(blk<1||blk>500){alert('ใส่ block size เป็น pixel เช่น 10');return;}
-  var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
-  var w=Math.round(sw/blk),h=Math.round(sh/blk);
-  w=Math.max(10,Math.min(150,w));h=Math.max(10,Math.min(150,h));
-  if(Math.abs(w-h)/Math.max(w,h)<0.06){var avg=Math.round((w+h)/2);w=avg;h=avg;}
-  detectedBlock=blk;
-  var hint=document.getElementById('size-hint');
-  hint.innerHTML='📐 block='+blk+'px → <b>'+w+'×'+h+'</b> stitches';hint.style.display='block';
-  applySz(w,h,blk);
-}
-function applySz(w,h,blk){
-  detectedBlock=blk;COLS=w;ROWS=h;
-  document.getElementById('sW').value=w;document.getElementById('vW').textContent=w;
-  document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;
-  document.getElementById('lockAR').checked=false;
-  grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
-  palette=[];SI=0;hist=[];dmcCache={};updPal();updStatus();fitZoom();
-}
+
 
 // ═══════════════ AUTO COLORS ═══════════════
 function autoColors(){
