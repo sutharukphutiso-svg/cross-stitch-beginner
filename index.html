@@ -92,7 +92,8 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
 #statusbar span b{color:#fff}
 
 /* ── RIGHT PANEL ── */
-#right{width:180px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:10px}
+#right{width:160px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:8px}
+#ref-side{width:260px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 #right::-webkit-scrollbar{width:4px}
 #right::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
@@ -207,6 +208,7 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
   <div class="sec" style="margin-top:10px">
     <div class="sec-h">Export</div>
     <button class="btn success" onclick="exportPNG()">📥 PNG Pattern</button>
+    <button class="btn success" style="background:#2980b9;border-color:#2980b9" onclick="exportPatternKeeper()">📖 Pattern Keeper</button>
     <button class="btn" onclick="exportChart()">📋 Chart + Symbols</button>
     <button class="btn" onclick="exportFlossList()">🧵 Floss List</button>
   </div>
@@ -222,29 +224,29 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
   </div>
 </div>
 
+<!-- REF SIDE PANEL -->
+<div id="ref-side">
+  <div style="padding:8px 10px 6px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold)">ภาพต้นฉบับ</span>
+    <div style="display:flex;gap:3px">
+      <button class="btn" style="padding:2px 7px;font-size:11px" onclick="refZoom(1.5)">＋</button>
+      <button class="btn" style="padding:2px 7px;font-size:11px" onclick="refZoom(1/1.5)">－</button>
+      <button class="btn" style="padding:2px 7px;font-size:11px" onclick="refFit()">Fit</button>
+      <button class="btn" id="ref-pick-btn" style="padding:2px 7px;font-size:11px" onclick="toggleRefPick()">💉</button>
+    </div>
+  </div>
+  <div style="flex:1;position:relative;overflow:hidden;background:#e8e4dc;cursor:crosshair" id="ref-wrap">
+    <canvas id="ref-cv" style="position:absolute;top:0;left:0;image-rendering:pixelated;image-rendering:crisp-edges"></canvas>
+    <div id="ref-empty" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;font-size:11px;color:var(--muted)">อัปโหลดภาพ<br>เพื่อดูที่นี่</div>
+  </div>
+  <div id="ref-color-preview" style="flex-shrink:0;padding:5px 8px;border-top:1px solid var(--border);font-size:10px;display:flex;align-items:center;gap:6px;min-height:28px">
+    <div id="ref-color-dot" style="width:14px;height:14px;border-radius:2px;border:1px solid var(--border2);flex-shrink:0"></div>
+    <span id="ref-color-txt" style="color:var(--muted)">💉 คลิกภาพเพื่อดูดสี</span>
+  </div>
+</div>
+
 <!-- RIGHT PANEL -->
 <div id="right">
-  <!-- Reference Image Panel -->
-  <div class="sec-h" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px">
-    ภาพต้นฉบับ
-    <span style="float:right;font-weight:400;color:var(--muted);cursor:pointer" onclick="toggleRef()" id="ref-toggle">▼</span>
-  </div>
-  <div id="ref-panel" style="margin-bottom:8px">
-    <div style="position:relative;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#f0f0f0;cursor:crosshair" id="ref-wrap">
-      <canvas id="ref-cv" style="display:block;width:100%;image-rendering:pixelated"></canvas>
-      <div id="ref-empty" style="padding:16px;text-align:center;font-size:10px;color:var(--muted)">อัปโหลดภาพเพื่อดูที่นี่</div>
-    </div>
-    <div style="display:flex;gap:3px;margin-top:4px">
-      <button class="btn" style="flex:1;padding:3px;font-size:10px" onclick="refZoom(1.5)">＋</button>
-      <button class="btn" style="flex:1;padding:3px;font-size:10px" onclick="refZoom(1/1.5)">－</button>
-      <button class="btn" style="flex:1;padding:3px;font-size:10px" onclick="refFit()">Fit</button>
-      <button class="btn act" id="ref-pick-btn" style="flex:1;padding:3px;font-size:10px" onclick="toggleRefPick()">💉Pick</button>
-    </div>
-    <div id="ref-color-preview" style="display:none;margin-top:4px;padding:4px 6px;border-radius:4px;font-size:10px;display:flex;align-items:center;gap:6px">
-      <div id="ref-color-dot" style="width:16px;height:16px;border-radius:3px;border:1px solid var(--border2)"></div>
-      <span id="ref-color-txt" style="color:var(--muted)">คลิกภาพเพื่อดูดสี</span>
-    </div>
-  </div>
   <div class="sec-h" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:3px">Palette</div>
   <div id="pal-grid"></div>
   <div style="display:flex;gap:3px;margin-bottom:8px">
@@ -505,7 +507,7 @@ function initEvents(){
     if(km[e.key.toLowerCase()]){var b=document.getElementById('t-'+km[e.key.toLowerCase()]);if(b)setTool(km[e.key.toLowerCase()],b);}
     if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
   });
-  window.addEventListener('resize',function(){render();});
+  window.addEventListener('resize',function(){render();setTimeout(renderRef,50);});
 }
 
 // ═══════════════ PALETTE ═══════════════
@@ -1072,6 +1074,93 @@ function exportFlossList(){
 }
 function dl(canvas,name){var a=document.createElement('a');a.download=name;a.href=canvas.toDataURL();a.click();}
 
+function exportPatternKeeper(){
+  // Pattern Keeper format: high-res PNG with clear grid + symbol legend
+  // Optimized for import into Pattern Keeper / MyThreadwork apps
+  var sz=20; // pixels per stitch
+  var W=COLS*sz, H=ROWS*sz;
+  var legRows=Math.ceil(palette.length/2)+2;
+  var legH=legRows*22+30;
+  var ec=document.createElement('canvas');
+  ec.width=W+120; // extra space for row numbers
+  ec.height=H+120+legH;
+  var ex=ec.getContext('2d');
+  
+  // White background
+  ex.fillStyle='#ffffff';ex.fillRect(0,0,ec.width,ec.height);
+  
+  // Title
+  ex.fillStyle='#1a1208';ex.font='bold 14px serif';ex.textAlign='left';
+  ex.fillText('Cross Stitch Pattern  '+COLS+'×'+ROWS+' stitches  '+palette.length+' colors',10,20);
+  ex.font='11px sans-serif';ex.fillStyle='#666';
+  ex.fillText('Fabric: Aida 14ct  Size: '+(COLS/14*2.54).toFixed(1)+'×'+(ROWS/14*2.54).toFixed(1)+' cm',10,36);
+  
+  var ox=50, oy=50; // offset for row/col numbers
+  
+  // Draw stitches
+  var cnt=new Array(palette.length).fill(0);
+  for(var r=0;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      var ci=grid[r][c];
+      var px2=ox+c*sz, py2=oy+r*sz;
+      if(ci>=0&&ci<palette.length){
+        cnt[ci]++;
+        ex.fillStyle=palette[ci];
+        ex.fillRect(px2,py2,sz,sz);
+        // Symbol
+        var rgb2=h2r(palette[ci]);
+        var lum2=rgb2?0.299*rgb2[0]+0.587*rgb2[1]+0.114*rgb2[2]:128;
+        ex.fillStyle=lum2>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
+        ex.font='bold '+(sz-6)+'px monospace';
+        ex.textAlign='center';ex.textBaseline='middle';
+        ex.fillText(getSym(ci),px2+sz/2,py2+sz/2);
+      }
+      // Cell border
+      ex.strokeStyle='rgba(0,0,0,.08)';ex.lineWidth=0.5;
+      ex.strokeRect(px2,py2,sz,sz);
+    }
+  }
+  
+  // Bold 10-grid lines
+  ex.strokeStyle='rgba(0,0,0,.35)';ex.lineWidth=1;
+  for(var r2=0;r2<=ROWS;r2+=10){
+    ex.beginPath();ex.moveTo(ox,oy+r2*sz);ex.lineTo(ox+COLS*sz,oy+r2*sz);ex.stroke();
+  }
+  for(var c2=0;c2<=COLS;c2+=10){
+    ex.beginPath();ex.moveTo(ox+c2*sz,oy);ex.lineTo(ox+c2*sz,oy+ROWS*sz);ex.stroke();
+  }
+  
+  // Row/col numbers every 10
+  ex.fillStyle='#888';ex.font='9px sans-serif';ex.textAlign='center';ex.textBaseline='middle';
+  for(var c3=0;c3<=COLS;c3+=10){ex.fillText(c3,ox+c3*sz,oy-12);}
+  ex.textAlign='right';
+  for(var r3=0;r3<=ROWS;r3+=10){ex.fillText(r3,ox-6,oy+r3*sz);}
+  
+  // Legend
+  var lY=oy+ROWS*sz+20;
+  ex.fillStyle='#1a1208';ex.font='bold 11px sans-serif';ex.textAlign='left';ex.textBaseline='alphabetic';
+  ex.fillText('Thread List:',ox,lY+12);
+  lY+=24;
+  palette.forEach(function(h,i){
+    if(!cnt[i])return;
+    var d=nearDMC(h);
+    var col=i%2, row2=Math.floor(i/2);
+    var lx=ox+col*(W/2+40), ly=lY+row2*22;
+    // Color swatch
+    ex.fillStyle=d.hex;ex.fillRect(lx,ly,16,16);
+    ex.strokeStyle='#999';ex.lineWidth=0.5;ex.strokeRect(lx,ly,16,16);
+    var rgb3=h2r(d.hex);var lum3=rgb3?0.299*rgb3[0]+0.587*rgb3[1]+0.114*rgb3[2]:128;
+    ex.fillStyle=lum3>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
+    ex.font='bold 9px monospace';ex.textAlign='center';ex.textBaseline='middle';
+    ex.fillText(getSym(i),lx+8,ly+8);
+    // DMC info
+    ex.fillStyle='#222';ex.font='10px sans-serif';ex.textAlign='left';ex.textBaseline='alphabetic';
+    ex.fillText('DMC '+d.num+' - '+d.name.substring(0,22)+' ('+cnt[i]+')',lx+20,ly+11);
+  });
+  
+  dl(ec,'pattern-keeper.png');
+}
+
 // ── Quick block size hint (runs after image load) ──
 function quickBlockHint(){
   if(!imgSrc)return;
@@ -1143,15 +1232,17 @@ function boot(){
   function renderRef(){
     if(!imgSrc||!refCTX)return;
     var wrap=document.getElementById('ref-wrap');
-    var dw=wrap.offsetWidth||160,dh=Math.round(dw*refNatH/refNatW)||dw;
-    // Cap display height
-    dh=Math.min(dh,220);
+    var dw=wrap.offsetWidth||260,dh=wrap.offsetHeight||400;
+    if(dw<10||dh<10)return;
     refCV.width=dw;refCV.height=dh;
-    refCV.style.height=dh+'px';
-    refCTX.fillStyle='#fff';refCTX.fillRect(0,0,dw,dh);
-    var ds=refZL;
-    var sx=refVX,sy=refVY,sw2=dw/ds,sh2=dh/ds;
-    refCTX.drawImage(imgSrc,sx,sy,sw2,sh2,0,0,dw,dh);
+    refCV.style.width=dw+'px';refCV.style.height=dh+'px';
+    refCTX.fillStyle='#e8e4dc';refCTX.fillRect(0,0,dw,dh);
+    if(!refNatW)return;
+    var visW=dw/refZL,visH=dh/refZL;
+    var sx=Math.max(0,Math.min(refNatW-visW,refVX));
+    var sy=Math.max(0,Math.min(refNatH-visH,refVY));
+    refCTX.imageSmoothingEnabled=(refZL<1);
+    refCTX.drawImage(imgSrc,sx,sy,visW,visH,0,0,dw,dh);
   }
 
   window.toggleRef=function(){
