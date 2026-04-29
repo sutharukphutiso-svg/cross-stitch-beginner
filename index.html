@@ -93,7 +93,7 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
 
 /* ── RIGHT PANEL ── */
 #right{width:160px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:8px}
-#ref-side{width:260px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#ref-side{width:380px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 #right::-webkit-scrollbar{width:4px}
 #right::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
@@ -603,7 +603,7 @@ function loadImgFile(f){
       refZL=1;refVX=0;refVY=0;
       document.getElementById('ref-empty').style.display='none';
       document.getElementById('ref-cv').style.display='block';
-      setTimeout(renderRef,50);
+      setTimeout(function(){refFit();renderRef();},100);
     };
     imgSrc.src=ev.target.result;
   };
@@ -1200,16 +1200,14 @@ function quickBlockHint(){
     inp.placeholder='แนะนำ: '+best;
     inp.value=best;
   }
-  // Auto apply
+  // แค่แสดง hint — ไม่ auto apply (user ต้องกด Auto ขนาด หรือ Apply เอง)
   var fw=Math.max(10,Math.min(150,Math.round(sw/best)));
   var fh=Math.max(10,Math.min(150,Math.round(sh/best)));
   if(Math.abs(fw-fh)/Math.max(fw,fh)<0.07){var avg=Math.round((fw+fh)/2);fw=avg;fh=avg;}
-  detectedBlock=best;
-  // Update sliders but don't reset grid
-  document.getElementById('sW').value=fw;document.getElementById('vW').textContent=fw;
-  document.getElementById('sH').value=fh;document.getElementById('vH').textContent=fh;
+  var inp=document.getElementById('manualBlock');
+  if(inp){inp.value=best;}
   var hint=document.getElementById('size-hint');
-  hint.innerHTML='📐 ตรวจพบ block≈'+best+'px → แนะนำ <b>'+fw+'×'+fh+'</b>';
+  hint.innerHTML='📐 ตรวจพบ block≈'+best+'px → กด <b>Apply</b> เพื่อตั้ง '+fw+'×'+fh;
   hint.style.display='block';
 }
 
