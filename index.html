@@ -581,13 +581,13 @@ function syncH(){var v=+document.getElementById('sH').value;document.getElementB
 function setSize(w,h){document.getElementById('sW').value=w;document.getElementById('vW').textContent=w;document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;document.getElementById('lockAR').checked=false;}
 function setNC(n){document.getElementById('sNC').value=n;document.getElementById('vNC').textContent=n;}
 
-// ═══════════════ AUTO SIZE ═══════════════
+// ═══════════════ AUTO SIZE (Autocorrelation) ═══════════════
 function autoSize(){
   if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
   var hint=document.getElementById('size-hint');
   var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
 
-  // Draw at native size (no scaling = most accurate)
+  // Draw at native/capped size
   var cap=1400,scl=Math.min(1,cap/Math.max(sw,sh));
   var W=Math.round(sw*scl),H=Math.round(sh*scl);
   var sc=document.createElement('canvas');sc.width=W;sc.height=H;
@@ -597,88 +597,90 @@ function autoSize(){
   sx.drawImage(imgSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
 
-  // Build horizontal gradient profile (average across middle rows)
-  var midY0=Math.floor(H*0.2),midY1=Math.floor(H*0.8);
-  var midX0=Math.floor(W*0.2),midX1=Math.floor(W*0.8);
-  var hGrad=new Float32Array(W);
-  var vGrad=new Float32Array(H);
-  var hCount=0,vCount=0;
-
-  for(var y=midY0;y<midY1;y+=2){
+  // ── Autocorrelation of horizontal gradient profile ──────────────
+  // Sample middle 60% of rows → average gradient per column
+  var y0=Math.floor(H*0.2),y1=Math.floor(H*0.8);
+  var grad=new Float64Array(W);
+  var nRows=0;
+  for(var y=y0;y<y1;y+=2){
     for(var x=1;x<W;x++){
       var i=(y*W+x)*4,j=(y*W+x-1)*4;
-      hGrad[x]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
+      grad[x]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
     }
-    hCount++;
+    nRows++;
   }
-  for(var x=midX0;x<midX1;x+=2){
+  if(nRows>0)for(var x=0;x<W;x++)grad[x]/=nRows;
+
+  // Subtract mean
+  var mean=0;for(var x=0;x<W;x++)mean+=grad[x];mean/=W;
+  for(var x=0;x<W;x++)grad[x]-=mean;
+
+  // Compute autocorrelation at lags 4-60 using direct method
+  // acf[lag] = sum(grad[x]*grad[x+lag]) / sum(grad[x]^2)
+  var norm=0;for(var x=0;x<W;x++)norm+=grad[x]*grad[x];
+  if(norm<1e-9){
+    hint.textContent='ไม่พบ pattern';hint.style.display='block';detectedBlock=0;return;
+  }
+
+  // Also compute vertical ACF
+  var grady=new Float64Array(H);
+  var x0=Math.floor(W*0.2),x1=Math.floor(W*0.8);
+  var nCols=0;
+  for(var x=x0;x<x1;x+=2){
     for(var y=1;y<H;y++){
       var i=(y*W+x)*4,j=((y-1)*W+x)*4;
-      vGrad[y]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
+      grady[y]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
     }
-    vCount++;
+    nCols++;
   }
-  if(hCount>0)for(var x=0;x<W;x++)hGrad[x]/=hCount;
-  if(vCount>0)for(var y=0;y<H;y++)vGrad[y]/=vCount;
+  if(nCols>0)for(var y=0;y<H;y++)grady[y]/=nCols;
+  var meany=0;for(var y=0;y<H;y++)meany+=grady[y];meany/=H;
+  for(var y=0;y<H;y++)grady[y]-=meany;
+  var normy=0;for(var y=0;y<H;y++)normy+=grady[y]*grady[y];
 
-  // Find edge positions (local maxima above threshold)
-  var hMean=0,vMean=0;
-  for(var x=0;x<W;x++)hMean+=hGrad[x];
-  for(var y=0;y<H;y++)vMean+=vGrad[y];
-  hMean/=W; vMean/=H;
-  var hThr=hMean*2.5, vThr=vMean*2.5;
-
-  var hEdges=[],vEdges=[];
-  for(var x=2;x<W-2;x++){
-    if(hGrad[x]>hThr&&hGrad[x]>hGrad[x-1]&&hGrad[x]>hGrad[x+1]&&hGrad[x]>hGrad[x-2]&&hGrad[x]>hGrad[x+2])
-      hEdges.push(x);
+  // Find best lag = block size
+  var bestLag=5,bestACF=-1;
+  var scores=[];
+  for(var lag=4;lag<=Math.min(80,Math.floor(W/4));lag++){
+    var fw=Math.round(sw/(lag/scl));
+    if(fw<10||fw>200)continue;
+    // ACF horizontal
+    var acfH=0;for(var x=0;x<W-lag;x++)acfH+=grad[x]*grad[x+lag];
+    acfH=norm>0?acfH/norm:0;
+    // ACF vertical
+    var acfV=0;if(normy>0){for(var y=0;y<H-lag;y++)acfV+=grady[y]*grady[y+lag];acfV/=normy;}
+    var acf=(acfH+acfV)/2;
+    scores.push({lag:lag,acf:acf,fw:fw});
   }
-  for(var y=2;y<H-2;y++){
-    if(vGrad[y]>vThr&&vGrad[y]>vGrad[y-1]&&vGrad[y]>vGrad[y+1]&&vGrad[y]>vGrad[y-2]&&vGrad[y]>vGrad[y+2])
-      vEdges.push(y);
-  }
 
-  // Compute gaps between consecutive edges
-  var hGaps=[],vGaps=[];
-  for(var i=1;i<hEdges.length;i++){var g=hEdges[i]-hEdges[i-1];if(g>=3&&g<=80)hGaps.push(g);}
-  for(var i=1;i<vEdges.length;i++){var g=vEdges[i]-vEdges[i-1];if(g>=3&&g<=80)vGaps.push(g);}
-  var allGaps=hGaps.concat(vGaps);
+  // Find peak with fw in 20-120 range
+  var inRange=scores.filter(function(s){return s.fw>=20&&s.fw<=120;});
+  var pool=inRange.length>0?inRange:scores;
+  pool.sort(function(a,b){return b.acf-a.acf;});
+  var best=pool[0];
 
-  if(!allGaps.length){
-    // Fallback: use image size heuristic
+  if(!best||best.acf<0.05){
     var base=sw>800?80:60;
     applySz(base,Math.round(base*sh/sw),0);
-    hint.textContent='🖼 ไม่พบ pattern → '+base+'×'+Math.round(base*sh/sw);hint.style.display='block';
+    hint.textContent='🖼 ไม่พบ pixel art → '+base+'×'+Math.round(base*sh/sw);hint.style.display='block';
     detectedBlock=0;return;
   }
 
-  // Score: count how many gaps are multiples of b (within ±1)
-  // Then pick best among candidates with fw<=120
-  var scores=[];
-  for(var b=3;b<=60;b++){
-    var fw2=Math.round(sw/(b/scl));
-    if(fw2<10||fw2>200)continue;
-    var matches=0;
-    allGaps.forEach(function(g){
-      if(Math.min(g%b,b-g%b)<=1)matches++;
-    });
-    scores.push({b:b,matches:matches,fw:fw2,ratio:matches/Math.max(allGaps.length,1)});
-  }
-  // Find best: highest match ratio, prefer fw<=120
-  var inRange=scores.filter(function(s){return s.fw<=120&&s.fw>=15;});
-  var pool=inRange.length>0?inRange:scores;
-  pool.sort(function(a,b){return b.matches-a.matches;});
-  var bestB=pool.length>0?pool[0].b:10;
-
-  var realBlock=Math.round(bestB/scl);
+  var realBlock=Math.round(best.lag/scl);
   var fw=Math.max(10,Math.min(150,Math.round(sw/realBlock)));
   var fh=Math.max(10,Math.min(150,Math.round(sh/realBlock)));
   if(Math.abs(fw-fh)/Math.max(fw,fh)<0.07){var avg=Math.round((fw+fh)/2);fw=avg;fh=avg;}
 
   detectedBlock=realBlock;
   applySz(fw,fh,realBlock);
-  hint.innerHTML='🎮 block≈'+realBlock+'px → <b>'+fw+'×'+fh+'</b>';
-  hint.style.display='block';
+
+  var msg='🎮 block≈'+realBlock+'px → <b>'+fw+'×'+fh+'</b> (acf='+best.acf.toFixed(2)+')';
+  // Show 2nd best as option
+  if(pool.length>1){
+    var b2=pool[1],rb2=Math.round(b2.lag/scl),fw2=Math.max(10,Math.min(150,Math.round(sw/rb2)));
+    msg+=' <span style="cursor:pointer;text-decoration:underline;color:var(--muted)" onclick="applySz('+fw2+','+fw2+','+rb2+')">'+fw2+'×'+fw2+'</span>';
+  }
+  hint.innerHTML=msg;hint.style.display='block';
 }
 
 
