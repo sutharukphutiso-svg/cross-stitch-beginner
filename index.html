@@ -1,1664 +1,1246 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cross Stitch Converter – Beginner</title>
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<title>✦ Cross Stitch Maker</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --cream:#faf7f2;--warm:#f2ece0;--border:#e0d8cc;
-  --sage:#5a7a5a;--sage-lt:#8aac8a;--sage-dk:#3d5c3d;
-  --brown:#6b4c2a;--text:#2a1f14;--muted:#8a7a6a;--red:#c0392b;
-  --shadow:0 2px 12px rgba(42,31,20,.08);--shadow-lg:0 8px 32px rgba(42,31,20,.14);
+  --bg:#0f0e0c;--panel:#1a1814;--card:#242018;--border:#3a3428;
+  --gold:#c9a84c;--gold-lt:#e8c96a;--gold-dim:#7a6430;
+  --cream:#f5eedc;--cream-dim:#9a8f78;
+  --red:#c0392b;--green:#4a8c5c;--green-lt:#6ab87a;
+  --text:#f0e8d8;--muted:#7a7060;
+  --shadow:0 8px 32px rgba(0,0,0,.5);
 }
-html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);background:var(--cream)}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);background:var(--bg)}
+/* Layout */
 #app{display:flex;height:100vh}
-#sidebar{width:240px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-#sb-head{padding:14px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--sage-dk)}
-#sb-head h1{font-family:'Lora',serif;font-size:15px;color:#fff;line-height:1.2}
-#sb-head p{font-size:10px;color:rgba(255,255,255,.6);margin-top:2px;font-style:italic}
-#sb-body{flex:1;overflow-y:auto;padding:10px}
-#sb-body::-webkit-scrollbar{width:3px}
-#sb-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-#toolbar{height:44px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:4px;flex-shrink:0;overflow-x:auto}
-#canvas-area{flex:1;position:relative;overflow:hidden;background:var(--warm)}
-#canvas-area::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(90,122,90,.05) 1px,transparent 1px);background-size:20px 20px;pointer-events:none}
-#gc,#ov{position:absolute;top:0;left:0;image-rendering:pixelated;image-rendering:crisp-edges}
-#ov{pointer-events:none}
-#statusbar{height:26px;background:#fff;border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:18px;flex-shrink:0;font-size:11px;color:var(--muted)}
-#statusbar b{color:var(--text);font-weight:500}
-#right-panel{width:220px;flex-shrink:0;background:#fff;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-#rp-head{padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--sage-dk);display:flex;align-items:center;justify-content:space-between}
-#rp-head span{font-family:'Lora',serif;font-size:13px;color:#fff}
-#rp-body{flex:1;overflow-y:auto;padding:8px}
-#ref-preview{width:100%;border-radius:6px;border:1px solid var(--border);display:block;margin-bottom:8px;background:var(--cream)}
-#ref-placeholder{width:100%;height:100px;border-radius:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);margin-bottom:8px}
-.rp-undo-btn{width:100%;padding:7px;font-size:12px;font-family:"DM Sans",sans-serif;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;color:var(--text);text-align:center;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
-.rp-undo-btn:hover{background:var(--sage);color:#fff;border-color:var(--sage)}
-.rp-undo-btn:active{background:var(--sage-dk)}
-/* DMC Picker Modal */
-#dmc-picker-modal{display:none;position:fixed;inset:0;z-index:2000;background:rgba(42,31,20,.45);align-items:center;justify-content:center}
-#dmc-picker-modal.show{display:flex}
-#dmc-picker-box{background:#fff;border-radius:12px;width:360px;max-height:80vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);overflow:hidden}
-#dmc-picker-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-#dmc-picker-head h3{font-family:'Lora',serif;font-size:14px;color:var(--text)}
-#dmc-picker-close{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);line-height:1;padding:2px 6px}
-#dmc-picker-close:hover{color:var(--text)}
-#dmc-search{width:100%;padding:8px 12px;border:none;border-bottom:1px solid var(--border);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;color:var(--text)}
-#dmc-search::placeholder{color:var(--muted)}
-#dmc-list{flex:1;overflow-y:auto;padding:4px 0}
-#dmc-list::-webkit-scrollbar{width:4px}
-#dmc-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.dmc-item{display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer;transition:background .1s}
-.dmc-item:hover{background:var(--cream)}
-.dmc-item.selected{background:rgba(90,122,90,.12)}
-.dmc-swatch{width:22px;height:22px;border-radius:4px;flex-shrink:0;border:1px solid rgba(0,0,0,.12)}
-.dmc-info{flex:1;min-width:0}
-.dmc-num{font-weight:500;font-size:12px;color:var(--text)}
-.dmc-name{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#dmc-picker-footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+#left{width:260px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#center{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#right{width:220px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+
+/* Left header */
+#lhead{padding:14px 16px 12px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#1e1a12,#2a2218);flex-shrink:0}
+#lhead h1{font-family:'Playfair Display',serif;font-size:18px;color:var(--gold-lt);letter-spacing:.5px}
+#lhead p{font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:.8px;text-transform:uppercase}
+
+/* Scroll body */
+#lbody{flex:1;overflow-y:auto;padding:10px}
+#lbody::-webkit-scrollbar{width:3px}
+#lbody::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* Section */
 .sec{margin-bottom:10px}
-.sec-t{font-size:9px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between}
-.sec-b{background:var(--cream);border-radius:8px;padding:9px;border:1px solid var(--border)}
+.sec-t{font-size:9px;font-weight:600;color:var(--gold-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;display:flex;align-items:center;gap:5px}
+.sec-t::before{content:'';display:inline-block;width:12px;height:1px;background:var(--gold-dim)}
+.sec-b{background:var(--card);border-radius:10px;padding:9px;border:1px solid var(--border)}
+
+/* Controls */
 .ctrl{margin-bottom:7px}.ctrl:last-child{margin-bottom:0}
-.cl{display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px}
-.cl span:first-child{color:var(--muted)}.cv{font-weight:500;color:var(--sage-dk)}
-input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:2px;cursor:pointer}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--sage);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--sage)}
-select{width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:12px;font-family:'DM Sans',sans-serif;outline:none}
-.cb-row{display:flex;align-items:center;gap:6px;font-size:12px;margin-top:5px}
-input[type=checkbox]{accent-color:var(--sage);width:13px;height:13px}
-.pg{display:flex;flex-wrap:wrap;gap:3px;max-height:120px;overflow-y:auto}
-.sw{width:24px;height:24px;border-radius:4px;cursor:pointer;border:2px solid transparent;flex-shrink:0;transition:transform .1s}
-.sw:hover{transform:scale(1.1)}
-.sw.sel{border-color:var(--sage-dk);box-shadow:0 0 0 1px var(--sage-dk)}
-.sw-add{width:24px;height:24px;border-radius:4px;cursor:pointer;border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px}
-.sw-add:hover{border-color:var(--sage);color:var(--sage)}
-.btn{padding:5px 11px;font-size:11px;font-family:'DM Sans',sans-serif;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;color:var(--text);white-space:nowrap;transition:all .15s}
-.btn:hover{background:var(--cream)}
-.btn.pr{background:var(--sage);color:#fff;border-color:var(--sage)}
-.btn.pr:hover{background:var(--sage-dk)}
+.cl{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;font-size:11px}
+.cl span:first-child{color:var(--muted)}.cv{font-weight:600;color:var(--gold)}
+input[type=range]{width:100%;height:3px;-webkit-appearance:none;background:var(--border);border-radius:2px;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gold);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--gold-dim)}
+select{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer}
+select option{background:var(--card)}
+.cb-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--cream-dim);margin-top:4px;cursor:pointer}
+input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:pointer}
+
+/* Buttons */
+.btn{padding:6px 11px;font-size:11px;font-family:'DM Sans',sans-serif;border:1px solid var(--border);border-radius:7px;background:var(--card);cursor:pointer;color:var(--cream-dim);white-space:nowrap;transition:all .15s}
+.btn:hover{background:var(--border);color:var(--text)}
+.btn.gd{background:var(--gold);color:#0f0e0c;border-color:var(--gold);font-weight:600}
+.btn.gd:hover{background:var(--gold-lt)}
+.btn.gr{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.gr:hover{background:var(--green-lt)}
 .btn.dr{color:var(--red);border-color:var(--red)}
-.btn-r{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
-.btn-full{width:100%;margin-bottom:4px;padding:7px 11px;font-size:12px;text-align:center}
-.tb-btn{padding:5px 11px;font-size:11px;font-family:'DM Sans',sans-serif;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;color:var(--muted);white-space:nowrap;flex-shrink:0;transition:all .15s}
-.tb-btn:hover{background:var(--cream);color:var(--text)}
-.tb-btn.act{background:var(--sage);color:#fff;border-color:var(--sage)}
-.zi{font-size:11px;color:var(--muted);min-width:36px;text-align:center;flex-shrink:0}
-#dropzone{border:2px dashed var(--border);border-radius:10px;padding:18px 10px;text-align:center;cursor:pointer;color:var(--muted);font-size:11px;line-height:1.7;transition:all .2s;background:#fff}
-#dropzone:hover,#dropzone.drag{border-color:var(--sage);color:var(--sage);background:rgba(90,122,90,.04)}
-.dz-icon{font-size:26px;margin-bottom:4px;display:block}
-#refimg{max-width:100%;border-radius:6px;margin-top:6px;display:none;border:1px solid var(--border)}
-.di{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:11px}
-.dd{width:16px;height:16px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.1)}
-.dn{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dna{color:var(--muted);font-size:10px;flex-shrink:0}
+.btn.dr:hover{background:rgba(192,57,43,.12)}
+.btn-r{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.btn-full{width:100%;margin-bottom:4px;padding:7px 11px;font-size:11px;text-align:center;display:block}
+
+/* Dropzone */
+#dropzone{border:2px dashed var(--border);border-radius:10px;padding:18px 10px;text-align:center;cursor:pointer;color:var(--muted);font-size:11px;line-height:1.8;transition:all .2s;background:var(--card);position:relative;overflow:hidden}
+#dropzone::before{content:'✦';position:absolute;font-size:60px;color:rgba(201,168,76,.04);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+#dropzone:hover,#dropzone.drag{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.05)}
+#dropzone .dz-icon{font-size:28px;margin-bottom:4px}
+#refthumb{width:100%;border-radius:6px;margin-top:7px;display:none;border:1px solid var(--border);max-height:120px;object-fit:contain}
+
+/* Status badge */
+#status-badge{display:none;background:rgba(74,140,92,.15);border:1px solid var(--green);color:var(--green-lt);border-radius:6px;padding:4px 8px;font-size:10px;text-align:center;margin-top:6px}
+#status-badge.processing{background:rgba(201,168,76,.1);border-color:var(--gold-dim);color:var(--gold)}
+#status-badge.error{background:rgba(192,57,43,.1);border-color:var(--red);color:#e57368}
+
+/* Toolbar */
+#toolbar{height:42px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:6px;flex-shrink:0}
+.tb-btn{padding:5px 12px;font-size:11px;font-family:'DM Sans',sans-serif;border:1px solid var(--border);border-radius:6px;background:transparent;cursor:pointer;color:var(--muted);white-space:nowrap;transition:all .15s}
+.tb-btn:hover{color:var(--text);border-color:var(--gold-dim)}
+.tb-btn.act{background:var(--gold);color:#0f0e0c;border-color:var(--gold);font-weight:600}
+.tb-sep{width:1px;height:22px;background:var(--border);flex-shrink:0}
+.zi{font-size:11px;color:var(--muted);min-width:40px;text-align:center}
+
+/* Canvas */
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#0a0906;display:flex;align-items:center;justify-content:center}
+#canvas-wrap::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.4));pointer-events:none}
+#gc{position:absolute;top:0;left:0;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair}
+#ov{position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated}
+
+/* Statusbar */
+#statusbar{height:26px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:18px;flex-shrink:0;font-size:10px;color:var(--muted)}
+#statusbar b{color:var(--cream-dim);font-weight:500}
+
+/* Right panel */
+#rhead{padding:12px 14px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+#rhead h2{font-size:12px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.8px}
+#rbody{flex:1;overflow-y:auto;padding:10px}
+#rbody::-webkit-scrollbar{width:3px}
+#rbody::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* Palette grid */
+.pg{display:flex;flex-wrap:wrap;gap:3px}
+.sw{width:24px;height:24px;border-radius:4px;cursor:pointer;border:2px solid transparent;flex-shrink:0;transition:all .12s;position:relative}
+.sw:hover{transform:scale(1.15);z-index:1}
+.sw.sel{border-color:#fff;box-shadow:0 0 0 1px var(--gold),0 2px 8px rgba(0,0,0,.5)}
+
+/* DMC list */
+#dlist{max-height:260px;overflow-y:auto}
+#dlist::-webkit-scrollbar{width:3px}
+#dlist::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.di{display:flex;align-items:center;gap:5px;padding:4px 3px;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px;border-radius:4px;cursor:pointer;transition:background .1s}
+.di:hover{background:rgba(255,255,255,.04)}
+.di.hl{background:rgba(201,168,76,.1)}
+.dd{width:14px;height:14px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,.1)}
+.dn{font-weight:500;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.dna{color:var(--muted);font-size:9px;white-space:nowrap}
 .dc{color:var(--muted);font-size:10px;margin-left:auto;flex-shrink:0}
-#dlist{max-height:180px;overflow-y:auto;margin-top:4px}
-#progress-wrap{display:none;position:fixed;inset:0;background:rgba(250,247,242,.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:12px}
-#progress-wrap.show{display:flex}
-.prog-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--sage);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.prog-txt{font-size:13px;color:var(--muted);font-family:'Lora',serif;font-style:italic}
-#cpick{display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px;box-shadow:var(--shadow-lg);width:195px}
-#cpick input[type=color]{width:100%;height:36px;border:none;border-radius:6px;cursor:pointer;padding:0}
-#cpick input[type=text]{width:100%;margin-top:6px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace}
+
+/* Preview mode toggle */
+#preview-strip{height:48px;background:var(--card);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:8px;flex-shrink:0}
+#preview-img{max-height:40px;max-width:40px;border-radius:4px;border:1px solid var(--border);display:none;object-fit:contain}
+.prev-info{flex:1;font-size:10px;color:var(--muted)}
+.prev-info b{color:var(--cream-dim);display:block;font-size:11px;margin-bottom:1px}
+
+/* Hint box */
+.hint{background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.2);border-radius:7px;padding:7px 9px;font-size:10px;color:var(--cream-dim);line-height:1.6;margin-bottom:7px}
+.hint b{color:var(--gold)}
+
+/* Color picker popup */
+#cpick{display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;box-shadow:var(--shadow);width:190px}
+#cpick input[type=color]{width:100%;height:36px;border:none;border-radius:5px;cursor:pointer;padding:0;background:none}
+#cpick input[type=text]{width:100%;margin-top:6px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;background:var(--panel);color:var(--text);outline:none}
 .cp-title{font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:500;text-transform:uppercase;letter-spacing:.6px}
-.fb{display:inline-block;background:rgba(90,122,90,.1);color:var(--sage-dk);border:1px solid rgba(90,122,90,.25);border-radius:4px;padding:2px 7px;font-size:10px;margin-top:4px}
-#convert-sec{background:linear-gradient(135deg,var(--sage-dk),var(--sage));border-radius:8px;padding:10px;margin-bottom:10px}
-#dbox{font-size:11px;line-height:1.6;white-space:pre-wrap;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;max-height:120px;overflow-y:auto;font-family:monospace;color:var(--muted)}
-#empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);pointer-events:none;gap:10px}
-#empty-state.hidden{display:none}
-.es-art{font-size:64px;opacity:.15}
-.es-txt{font-family:'Lora',serif;font-size:18px;opacity:.5;font-style:italic}
-.es-sub{font-size:11px;opacity:.35}
-#hl{max-height:55px;overflow-y:auto;font-size:11px;color:var(--muted)}
-#hl div{padding:1px 0;border-bottom:1px solid rgba(0,0,0,.05)}
-.sep{height:1px;background:var(--border);margin:7px 0}
-#color-panel{max-height:220px;overflow-y:auto;}
-#color-panel::-webkit-scrollbar{width:3px}
-#color-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.cp-dmc{font-size:10px;color:var(--gold);margin-top:5px}
+
+/* Progress bar */
+#progress-wrap{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 28px;text-align:center;z-index:100;min-width:200px;box-shadow:var(--shadow)}
+#progress-bar{width:100%;height:4px;background:var(--border);border-radius:2px;margin-top:10px;overflow:hidden}
+#progress-fill{height:100%;background:var(--gold);border-radius:2px;width:0%;transition:width .3s}
+#progress-text{font-size:12px;color:var(--cream-dim);margin-bottom:5px}
+
+/* Embroidery hoop preview effect */
+.hoop-bg{position:absolute;pointer-events:none;opacity:0.03;font-size:400px;top:50%;left:50%;transform:translate(-50%,-50%);user-select:none;line-height:1}
 </style>
 </head>
 <body>
 <div id="app">
 
-<div id="sidebar">
-  <div id="sb-head"><h1>✦ Cross Stitch</h1><p>Beginner Pattern Converter</p></div>
-  <div id="sb-body">
+<!-- LEFT PANEL -->
+<div id="left">
+  <div id="lhead">
+    <h1>✦ Cross Stitch</h1>
+    <p>Auto Pattern Maker</p>
+  </div>
+  <div id="lbody">
 
+    <!-- UPLOAD -->
     <div class="sec">
-      <div class="sec-t">Reference Image</div>
-      <div id="dropzone" onclick="document.getElementById('rfile').click()" ondragover="dzOver(event)" ondragleave="dzLeave(event)" ondrop="dzDrop(event)">
-        <span class="dz-icon">🖼</span>
-        <div>Drag &amp; drop or click to upload</div>
-        <div style="font-size:10px;opacity:.7">JPG · PNG · GIF</div>
+      <div class="sec-t">ภาพต้นฉบับ</div>
+      <div id="dropzone" onclick="document.getElementById('rfile').click()" ondragover="dzOver(event)" ondragleave="dzLeave()" ondrop="dzDrop(event)">
+        <div class="dz-icon">🖼</div>
+        <div>คลิกหรือลากภาพมาวาง</div>
+        <div style="font-size:10px;opacity:.5;margin-top:2px">PNG / JPG · flat art ดีที่สุด</div>
       </div>
-      <img id="refimg">
-      <input type="file" id="rfile" accept="image/*" style="display:none" onchange="onFileSelect(this)">
-      <div id="re-btn" style="display:none;margin-top:5px">
-        <button class="btn" style="width:100%;font-size:11px" onclick="resetUpload()">↩ Change image</button>
-      </div>
+      <img id="refthumb">
+      <div id="status-badge">✓ แปลงสำเร็จ!</div>
+      <input type="file" id="rfile" accept="image/*" style="display:none" onchange="onFile(this)">
     </div>
 
-    <div id="convert-sec">
-      <div class="sec-t" style="color:rgba(255,255,255,.7)">⚙ Convert Settings</div>
-      <div class="ctrl">
-        <div class="cl"><span style="color:rgba(255,255,255,.8)">Pattern Size</span><span class="cv" id="szv">60 × 60</span></div>
-        <input type="range" id="sz" min="20" max="120" value="60" step="5" oninput="onSz()">
-        <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px">max 120 stitches (Beginner friendly)</div>
-      </div>
-      <div class="ctrl">
-        <div class="cl"><span style="color:rgba(255,255,255,.8)">DMC Colors</span><span class="cv" id="ncv">14</span></div>
-        <input type="range" id="nc" min="5" max="20" value="14" step="1" oninput="onNc()">
-      </div>
-      <div class="ctrl">
-        <div class="cl"><span style="color:rgba(255,255,255,.8)">Remove BG</span><span class="cv" id="bgv">30</span></div>
-        <input type="range" id="bg" min="0" max="255" value="30" step="5" oninput="onBg()">
-        <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px">0 = keep all · 255 = remove all light</div>
-      </div>
-      <button class="btn pr btn-full" id="cvt-btn" onclick="convertImage()" disabled style="margin-top:6px;font-weight:500;opacity:.6">▶ Convert to Pattern</button>
+    <!-- TIPS -->
+    <div class="hint">
+      <b>💡 ภาพที่เหมาะสม:</b><br>
+      Flat design · clipart · cartoon<br>
+      พื้นหลังขาว/โปร่งใส · สีน้อย<br>
+      <b>หลีกเลี่ยง:</b> ภาพถ่าย, ภาพเงา
     </div>
 
+    <!-- GRID SIZE -->
     <div class="sec">
-      <div class="sec-t">Fabric</div>
+      <div class="sec-t">ขนาด Grid</div>
       <div class="sec-b">
-        <select id="fab" onchange="updSt()">
+        <div class="ctrl">
+          <div class="cl"><span>กว้าง (stitches)</span><span class="cv" id="vW">40</span></div>
+          <input type="range" id="sW" min="10" max="120" value="40" step="2" oninput="onW()">
+        </div>
+        <div class="ctrl">
+          <div class="cl"><span>สูง (stitches)</span><span class="cv" id="vH">40</span></div>
+          <input type="range" id="sH" min="10" max="120" value="40" step="2" oninput="onH()">
+        </div>
+        <div class="cb-row"><input type="checkbox" id="lock" checked><label for="lock">ล็อกสัดส่วน W=H</label></div>
+        <div class="btn-r">
+          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(30,30)">Tiny 30×30</button>
+          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(40,40)">Small 40×40</button>
+          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(60,60)">Med 60×60</button>
+        </div>
+        <button class="btn" style="width:100%;margin-top:5px;font-size:10px" onclick="matchRatio()">📐 Match image ratio</button>
+      </div>
+    </div>
+
+    <!-- COLOR -->
+    <div class="sec">
+      <div class="sec-t">สี</div>
+      <div class="sec-b">
+        <div class="ctrl">
+          <div class="cl"><span>จำนวนสีสูงสุด</span><span class="cv" id="vNC">10</span></div>
+          <input type="range" id="sNC" min="2" max="30" value="10" step="1" oninput="onNC()">
+        </div>
+        <div class="ctrl" style="margin-top:4px">
+          <div class="cl" style="margin-bottom:0"><span>โหมด Quantize</span></div>
+          <select id="qmode">
+            <option value="kmeans">K-Means (แนะนำ)</option>
+            <option value="median">Median Cut</option>
+            <option value="octree">Octree</option>
+          </select>
+        </div>
+        <div class="cb-row" style="margin-top:6px"><input type="checkbox" id="chkOutline" checked><label for="chkOutline">ตรวจจับเส้นขอบ (outline)</label></div>
+        <div class="cb-row"><input type="checkbox" id="chkBg" checked><label for="chkBg">ลบพื้นหลังสีขาว</label></div>
+      </div>
+    </div>
+
+    <!-- FABRIC -->
+    <div class="sec">
+      <div class="sec-t">ผ้า & ไม้กลอง</div>
+      <div class="sec-b">
+        <select id="fab">
           <option value="11">Aida 11 ct</option>
           <option value="14" selected>Aida 14 ct</option>
           <option value="16">Aida 16 ct</option>
           <option value="18">Aida 18 ct</option>
-          <option value="28">Evenweave 28 ct</option>
         </select>
-        <div class="fb" id="fcm">-- × -- cm</div>
-        <div class="cb-row"><input type="checkbox" id="sgr" checked onchange="render()"><label for="sgr">Show Grid</label></div>
-        <div class="cb-row"><input type="checkbox" id="ssy" checked onchange="render()"><label for="ssy">Show Symbols</label></div>
+        <div id="fcm" style="font-size:10px;color:var(--gold);margin-top:4px">-- × -- cm</div>
+        <div class="cb-row" style="margin-top:6px"><input type="checkbox" id="showGrid" checked onchange="render()"><label for="showGrid">แสดง Grid</label></div>
+        <div class="cb-row"><input type="checkbox" id="showSym" checked onchange="render()"><label for="showSym">แสดง Symbol</label></div>
       </div>
     </div>
 
-    <div class="sec">
-      <div class="sec-t">Colors Used <span id="pcnt" style="color:var(--text);font-weight:500">0</span></div>
-      <div class="sec-b" style="padding:6px">
-        <div id="pgrid" style="display:none"></div><div id="color-panel"></div>
-        <div class="btn-r" style="margin-top:6px">
-          <button class="btn" onclick="addCol()" style="font-size:11px">+ Add color</button>
-          <button class="btn dr" onclick="clearUnused()" style="font-size:11px">Remove unused</button>
-        </div>
-      </div>
-    </div>
+    <!-- CONVERT BUTTON -->
+    <button class="btn gd btn-full" onclick="doConvert()" id="convertBtn">
+      ✦ แปลงเป็น Pattern
+    </button>
 
-    <div class="sec">
-      <div class="sec-t">DMC Thread List</div>
-      <div class="sec-b">
-        <div id="dlist"><div style="color:var(--muted);font-size:11px">Convert an image first</div></div>
-        <div class="btn-r">
-          <button class="btn pr" onclick="xFlossPNG()">Floss PNG</button>
-          <button class="btn" onclick="xFlossCSV()">CSV</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec">
-      <div class="sec-t">Product Description</div>
-      <div class="sec-b">
-        <div id="dbox">Click Generate to create Etsy description</div>
-        <div class="btn-r">
-          <button class="btn pr" onclick="genDesc()">Generate</button>
-          <button class="btn" id="cbtn" onclick="copyDesc()">Copy</button>
-        </div>
-      </div>
-    </div>
-
+    <!-- ACTIONS -->
     <div class="sec">
       <div class="sec-t">Export</div>
       <div class="sec-b">
-        <button class="btn pr btn-full" onclick="xPNG()">📷 Export PNG Preview</button>
-        <button class="btn pr btn-full" onclick="xChart()">🗺 Export Chart PNG</button>
-        <div class="sep"></div>
-        <div style="font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">PDF Pattern</div>
-        <button class="btn pr btn-full" onclick="xPDF('color','S')">Color · Small (1 page A4)</button>
-        <button class="btn pr btn-full" onclick="xPDF('color','M')">Color · Medium (2 pages A4)</button>
-        <button class="btn pr btn-full" onclick="xPDF('color','L')">Color · Large (4 pages A4)</button>
-        <button class="btn btn-full" onclick="xPDF('bw','S')">B&amp;W · Small (1 page A4)</button>
-        <button class="btn btn-full" onclick="xPDF('bw','M')">B&amp;W · Medium (2 pages A4)</button>
-        <button class="btn btn-full" onclick="xPDF('bw','L')">B&amp;W · Large (4 pages A4)</button>
-        <div class="sep"></div>
-        <button class="btn btn-full" onclick="xFlossLengthPDF()">📏 Floss Length Guide PDF</button>
-        <button class="btn btn-full" onclick="xPatternKeeper()">📱 Pattern Keeper PDF</button>
+        <button class="btn gr btn-full" onclick="xPNG()">📥 Export PNG Pattern</button>
+        <button class="btn btn-full" onclick="xChart()">📋 Export Chart (with Symbols)</button>
+        <button class="btn btn-full" onclick="xFlossPNG()">🧵 Export Floss List</button>
+        <button class="btn btn-full" style="margin-top:3px" onclick="xPDF()">📄 Export PDF</button>
       </div>
-    </div>
-
-    <div class="sec">
-      <div class="sec-t">Edit</div>
-      <div class="sec-b" style="display:flex;flex-wrap:wrap;gap:4px">
-        <button class="btn" onclick="undo()">↩ Undo</button>
-        <button class="btn dr" onclick="clearCanvas()">Clear</button>
-      </div>
-    </div>
-
-    <div class="sec">
-      <div class="sec-t">History</div>
-      <div class="sec-b"><div id="hl"><div>No history yet</div></div></div>
     </div>
 
   </div>
 </div>
 
-<div id="main">
+<!-- CENTER: CANVAS -->
+<div id="center">
   <div id="toolbar">
-    <button class="tb-btn act" id="t-move" onclick="setTool('move',this)">Move</button>
-    <button class="tb-btn" id="t-paint" onclick="setTool('paint',this)">Paint</button>
-    <button class="tb-btn" id="t-erase" onclick="setTool('erase',this)">Erase</button>
-    <button class="tb-btn" id="t-fill" onclick="setTool('fill',this)">Fill</button>
-    <button class="tb-btn" id="t-pick" onclick="setTool('pick',this)">Pick</button>
-    <button class="tb-btn" id="t-line" onclick="setTool('line',this)">Line</button>
-    <button class="tb-btn" id="t-select" onclick="setTool('select',this)">Select</button>
-    <div style="width:1px;height:20px;background:var(--border);margin:0 3px;flex-shrink:0"></div>
-    <button class="tb-btn" onclick="doZoom(1.25)">+</button>
+    <button class="tb-btn act" id="t-move" onclick="setTool('move',this)">✋ Move</button>
+    <button class="tb-btn" id="t-paint" onclick="setTool('paint',this)">✏️ Paint</button>
+    <button class="tb-btn" id="t-erase" onclick="setTool('erase',this)">⬜ Erase</button>
+    <button class="tb-btn" id="t-fill" onclick="setTool('fill',this)">🪣 Fill</button>
+    <button class="tb-btn" id="t-pick" onclick="setTool('pick',this)">💉 Pick</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="doZoom(1.25)">＋</button>
     <div class="zi" id="zpct">100%</div>
-    <button class="tb-btn" onclick="doZoom(0.8)">−</button>
+    <button class="tb-btn" onclick="doZoom(.8)">－</button>
     <button class="tb-btn" onclick="fitZoom()">Fit</button>
-    <button class="tb-btn" onclick="resetView()">Reset</button>
-    <div style="width:1px;height:20px;background:var(--border);margin:0 3px;flex-shrink:0"></div>
-    <button class="tb-btn" onclick="undo()" title="Undo (Ctrl+Z)" style="font-size:13px">↩ Undo</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="undo()">↩ Undo</button>
+    <button class="tb-btn dr" onclick="clearCanvas()">✕ Clear</button>
+    <div class="tb-sep"></div>
+    <span id="stl" style="font-size:11px;color:var(--muted)">Move</span>
   </div>
-  <div id="canvas-area">
-    <canvas id="gc"></canvas><canvas id="ov"></canvas>
-    <div id="empty-state">
-      <div class="es-art">🐰</div>
-      <div class="es-txt">Upload an image to begin</div>
-      <div class="es-sub">Your cross stitch pattern will appear here</div>
+
+  <div id="canvas-wrap">
+    <div class="hoop-bg">◯</div>
+    <canvas id="gc"></canvas>
+    <canvas id="ov"></canvas>
+    <div id="progress-wrap">
+      <div id="progress-text">กำลังแปลงภาพ...</div>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
     </div>
   </div>
+
   <div id="statusbar">
-    <span>Tool: <b id="stl">Move</b></span>
-    <span>Pos: <b id="stp">--</b></span>
-    <span>Size: <b id="sts">-- × --</b></span>
-    <span>Stitches: <b id="stc">--</b></span>
-    <span style="margin-left:auto">Color: <span id="stcol" style="display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;border:1px solid #ccc;margin-right:3px"></span><b id="sthex">--</b></span>
+    <span>Grid: <b id="stsz">40×40</b></span>
+    <span>Zoom: <b id="stzm">100%</b></span>
+    <span>XY: <b id="stp">--</b></span>
+    <span>Fabric: <b id="stfab">Aida 14ct</b></span>
+    <span>Size: <b id="stcm">-- cm</b></span>
   </div>
 </div>
 
-<!-- ── RIGHT PANEL (inside #app) ── -->
-<div id="right-panel">
-  <div id="rp-head">
-    <span>🖼 Reference</span>
-  </div>
-  <div id="rp-body">
-    <div id="ref-placeholder" style="display:flex">Upload an image first</div>
-    <img id="ref-preview" style="display:none">
-    <div style="height:1px;background:var(--border);margin:8px 0"></div>
-    <button class="rp-undo-btn" onclick="undo()" title="Ctrl+Z">
-      <span style="font-size:15px">↩</span> Undo last action
-    </button>
-    <div style="margin-top:6px;font-size:10px;color:var(--muted);text-align:center">Ctrl+Z</div>
-  </div>
-</div>
-</div>
+<!-- RIGHT PANEL: PALETTE + DMC -->
+<div id="right">
+  <div id="rhead"><h2>🎨 Palette & DMC</h2></div>
+  <div id="rbody">
 
-<!-- ── DMC PICKER MODAL ── -->
-<div id="dmc-picker-modal">
-  <div id="dmc-picker-box">
-    <div id="dmc-picker-head">
-      <h3>Choose DMC Color</h3>
-      <button id="dmc-picker-close" onclick="dmcPickerClose()">✕</button>
+    <div class="sec">
+      <div class="sec-t">Palette</div>
+      <div class="pg" id="pgrid"></div>
+      <div class="btn-r" style="margin-top:6px">
+        <button class="btn" style="font-size:10px" onclick="addCol()">+ เพิ่มสี</button>
+        <button class="btn dr" style="font-size:10px" onclick="clearUnused()">ลบที่ไม่ใช้</button>
+      </div>
     </div>
-    <input type="text" id="dmc-search" placeholder="Search by number or name… e.g. 726 or Topaz" oninput="dmcSearchFilter()">
-    <div id="dmc-list"></div>
-    <div id="dmc-picker-footer">
-      <button class="btn pr" onclick="dmcPickerOK()" style="flex:1">✓ Apply</button>
-      <button class="btn" onclick="dmcPickerClose()" style="flex:1">Cancel</button>
+
+    <div class="sec">
+      <div class="sec-t">DMC Thread</div>
+      <div id="dlist"><div style="color:var(--muted);font-size:11px;padding:4px">Convert ก่อนนะคะ</div></div>
+    </div>
+
+    <div class="sec" style="margin-top:8px">
+      <div class="sec-t">Etsy Description</div>
+      <div class="sec-b">
+        <div id="dbox" style="font-size:10px;line-height:1.6;white-space:pre-wrap;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:7px;max-height:130px;overflow-y:auto;font-family:monospace;color:var(--muted)">กด Generate เพื่อสร้าง</div>
+        <div class="btn-r">
+          <button class="btn gd" style="flex:1;font-size:10px" onclick="genDesc()">Generate</button>
+          <button class="btn" style="flex:1;font-size:10px" id="cbtn" onclick="copyDesc()">Copy</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Preview strip -->
+  <div id="preview-strip">
+    <img id="preview-img">
+    <div class="prev-info" id="prev-info">
+      <b>ยังไม่มีภาพ</b>
+      อัปโหลดภาพเพื่อเริ่ม
     </div>
   </div>
 </div>
 
+</div>
+
+<!-- Color Picker Popup -->
 <div id="cpick">
-  <div class="cp-title">Pick color</div>
-  <input type="color" id="cpc" oninput="cpChg()">
-  <input type="text" id="cph" placeholder="#ffffff" onchange="cpHex()" maxlength="7">
+  <div class="cp-title">Edit Color</div>
+  <input type="color" id="cp-col" oninput="cpInput()">
+  <input type="text" id="cp-hex" placeholder="#ffffff" oninput="cpHex()">
+  <div class="cp-dmc" id="cp-dmc"></div>
   <div class="btn-r" style="margin-top:8px">
-    <button class="btn pr" onclick="cpOK()" style="flex:1">OK</button>
-    <button class="btn" onclick="cpX()" style="flex:1">Cancel</button>
+    <button class="btn gd" style="flex:1" onclick="cpApply()">Apply</button>
+    <button class="btn" onclick="cpClose()">Cancel</button>
   </div>
 </div>
 
-<div id="progress-wrap">
-  <div class="prog-spinner"></div>
-  <div class="prog-txt" id="prog-txt">Converting image…</div>
-</div>
+<canvas id="ref-canvas" style="display:none"></canvas>
 
 <script>
-
-// ── SYMBOLS ──────────────────────────────────────────────────────────────────
-// SYMBOLS
-var SYM=[
-  // Shapes drawn with ASCII - all render perfectly in jsPDF
-  'o','O','*','@','#','%','+','=','-','|',
-  '/','\\','<','>','(',')','^','~','[',']',
-  '&','$','!','?','8','0','T','Y','X','Z',
-  'S','L','7','3','V','W','N','M','H','K'
-];
-
-// ── DMC DATABASE ─────────────────────────────────────────────────────────────
-// DMC DATABASE (abbreviated - key colors)
+// ═══════════════════════════════════════════════════════════════════
+// DMC COLOR DATABASE (compact)
+// ═══════════════════════════════════════════════════════════════════
 var DMC=[
-["blanc","White",255,255,255],[310,"Black",0,0,0],[321,"Red",196,40,54],
-[400,"Mahogany-DK",139,69,19],[402,"Mahogany-LT",255,178,122],[413,"Pewter-DK",84,84,84],
-[414,"Steel Gray",169,169,169],[415,"Pearl Gray",210,210,210],[433,"Brown-MED",138,90,50],
-[434,"Brown-LT",165,115,70],[435,"Brown-VY LT",188,142,100],[436,"Tan",205,165,115],
-[437,"Tan-LT",222,190,145],[469,"Avocado Green",100,130,60],[470,"Avocado-LT",130,165,80],
-[500,"Blue Green-VY DK",30,80,60],[501,"Blue Green-DK",50,110,85],[502,"Blue Green",80,140,110],
-[503,"Blue Green-MED",110,170,140],[519,"Sky Blue",140,190,220],[520,"Fern Green-DK",80,100,60],
-[522,"Fern Green",130,150,100],[523,"Fern Green-LT",160,175,130],[524,"Fern Green-VY LT",185,200,160],
-[535,"Ash Gray-VY LT",90,90,90],[543,"Beige Brown-ULT VY LT",225,210,190],
-[550,"Violet-VY DK",90,30,100],[552,"Violet-MED",130,60,140],[553,"Violet",165,100,175],
-[554,"Violet-LT",210,165,215],[561,"Jade-VY DK",40,110,80],[562,"Jade-MED",70,150,110],
-[563,"Jade-LT",115,185,150],[597,"Turquoise",70,175,185],[598,"Turquoise-LT",130,205,210],
-[600,"Cranberry-VY DK",185,30,80],[601,"Cranberry-DK",205,50,100],[602,"Cranberry-MED",220,80,120],
-[603,"Cranberry",235,120,155],[604,"Cranberry-LT",245,170,190],[606,"Orange Red-BRT",230,50,20],
-[608,"Orange-BRT",240,100,30],[610,"Drab Brown-DK",130,105,70],[611,"Drab Brown",155,130,90],
-[612,"Drab Brown-LT",185,165,130],[632,"Desert Sand-ULT DK",140,85,55],[640,"Beige Gray-VY DK",130,120,100],
-[642,"Beige Gray-DK",165,155,135],[644,"Beige Gray-MED",200,195,180],[645,"Beaver Gray-VY DK",100,95,90],
-[646,"Beaver Gray-DK",130,125,120],[647,"Beaver Gray-MED",165,160,155],[648,"Beaver Gray-LT",200,195,190],
-[666,"Red-BRT",215,30,45],[676,"Old Gold-LT",220,195,130],[677,"Old Gold-VY LT",235,220,175],
-[680,"Old Gold-DK",185,150,60],[699,"Green",20,120,40],[700,"Green-BRT",30,140,50],
-[701,"Green-LT",60,165,75],[702,"Kelly Green",80,185,95],[703,"Chartreuse",110,200,110],
-[712,"Cream",250,240,220],[718,"Plum",155,40,110],[720,"Orange Spice-DK",210,95,30],
-[721,"Orange Spice-MED",225,125,55],[722,"Orange Spice-LT",240,165,100],[725,"Topaz-MED LT",250,200,60],
-[726,"Topaz-LT",250,215,100],[727,"Topaz-VY LT",255,235,170],[729,"Old Gold-MED",200,165,70],
-[738,"Tan-VY LT",230,200,155],[739,"Tan-ULT VY LT",245,225,195],[740,"Tangerine",250,140,20],
-[741,"Tangerine-MED",250,165,50],[742,"Tangerine-LT",250,195,95],[743,"Yellow-MED",250,220,120],
-[744,"Yellow-PALE",250,235,165],[746,"Off White",255,250,230],[747,"Sky Blue-VY LT",220,245,250],
-[754,"Peach-LT",245,195,165],[758,"Terra Cotta-VY LT",235,175,150],[760,"Salmon",235,155,140],
-[761,"Salmon-LT",245,185,175],[762,"Pearl Gray-VY LT",235,235,235],[772,"Yellow Green-VY LT",215,230,190],
-[775,"Baby Blue-VY LT",210,235,245],[776,"Pink-MED",245,170,175],[780,"Topaz-ULT VY DK",155,110,30],
-[781,"Topaz-VY DK",175,130,45],[782,"Topaz-DK",195,150,55],[783,"Topaz-MED",215,175,80],
-[791,"Cornflower Blue-VY DK",65,75,135],[792,"Cornflower Blue-DK",85,100,165],
-[793,"Cornflower Blue-MED",115,130,190],[794,"Cornflower Blue-LT",155,170,215],
-[796,"Royal Blue-DK",30,70,150],[797,"Royal Blue",40,90,175],[798,"Delft Blue-DK",70,115,185],
-[799,"Delft Blue-MED",105,145,205],[800,"Delft Blue-PALE",175,200,225],[801,"Coffee Brown-DK",110,65,35],
-[806,"Peacock Blue-DK",45,150,175],[807,"Peacock Blue",75,175,200],[813,"Blue-LT",155,190,220],
-[814,"Garnet-DK",140,20,40],[815,"Garnet-MED",165,30,55],[816,"Garnet",185,40,65],
-[817,"Coral Red-VY DK",195,50,50],[818,"Baby Pink",255,205,200],[819,"Baby Pink-LT",255,225,220],
-[822,"Beige Gray-LT",220,215,195],[823,"Navy Blue-DK",30,40,105],[824,"Blue-VY DK",45,95,150],
-[825,"Blue-DK",60,120,175],[826,"Blue-MED",85,145,195],[827,"Blue-VY LT",175,210,235],
-[838,"Beige Brown-VY DK",95,70,45],[839,"Beige Brown-DK",120,90,60],[840,"Beige Brown-MED",150,115,80],
-[841,"Beige Brown-LT",185,155,120],[842,"Beige Brown-VY LT",215,190,160],[869,"Hazel Nut Brown-VY DK",130,90,45],
-[890,"Pistachio Green-ULT DK",30,80,35],[891,"Carnation-DK",240,90,110],[892,"Carnation-MED",245,120,135],
-[893,"Carnation-LT",250,155,165],[894,"Carnation-VY LT",255,190,195],[895,"Hunter Green-VY DK",30,90,40],
-[898,"Coffee Brown-VY DK",90,50,25],[899,"Rose-MED",240,130,145],[900,"Burnt Orange-DK",200,70,20],
-[902,"Garnet-VY DK",120,25,45],[904,"Parrot Green-VY DK",70,135,50],[905,"Parrot Green-DK",90,165,65],
-[906,"Parrot Green-MED",120,195,90],[907,"Parrot Green-LT",160,220,120],[909,"Emerald Green-VY DK",25,130,60],
-[910,"Emerald Green-DK",35,155,75],[911,"Emerald Green-MED",50,175,90],[912,"Emerald Green-LT",70,200,110],
-[913,"Nile Green-MED",120,200,150],[918,"Red Copper-DK",155,65,35],[919,"Red Copper",185,85,45],
-[920,"Copper-MED",200,105,60],[921,"Copper",215,125,75],[922,"Copper-LT",230,150,100],
-[924,"Gray Green-VY DK",75,105,95],[926,"Gray Green-MED",130,160,150],[927,"Gray Green-LT",170,195,185],
-[928,"Gray Green-VY LT",205,220,215],[930,"Antique Blue-DK",80,105,130],[931,"Antique Blue-MED",110,140,165],
-[932,"Antique Blue-LT",155,180,200],[937,"Avocado Green-MED",95,125,60],[938,"Coffee Brown-ULT DK",70,40,20],
-[943,"Aquamarine-MED",50,185,160],[945,"Tawny",245,190,155],[946,"Burnt Orange-MED",220,95,25],
-[947,"Burnt Orange",235,120,40],[948,"Peach-VY LT",255,225,210],[950,"Desert Sand-LT",225,185,155],
-[951,"Tawny-LT",250,215,185],[954,"Nile Green",110,195,140],[955,"Nile Green-LT",155,220,175],
-[956,"Geranium",245,120,115],[958,"Sea Green-DK",50,185,165],[959,"Sea Green-MED",80,200,185],
-[961,"Dusty Rose-DK",210,110,120],[962,"Dusty Rose-MED",230,145,150],[963,"Dusty Rose-ULT VY LT",255,210,210],
-[966,"Baby Green-MED",170,215,175],[970,"Pumpkin-LT",240,135,45],[971,"Pumpkin",240,120,20],
-[972,"Canary-DEEP",250,175,20],[975,"Golden Brown-DK",150,95,30],[976,"Golden Brown-MED",200,145,70],
-[977,"Golden Brown-LT",225,175,105],[986,"Forest Green-VY DK",50,90,40],[987,"Forest Green-DK",70,120,55],
-[988,"Forest Green-MED",95,150,75],[989,"Forest Green",120,175,100],[991,"Aquamarine-DK",50,135,115],
-[992,"Aquamarine-MED",75,170,150],[993,"Aquamarine-LT",115,195,175],[995,"Electric Blue-DK",30,145,210],
-[3011,"Khaki Green-DK",130,140,80],[3012,"Khaki Green-MED",155,165,100],[3013,"Khaki Green-LT",185,195,140],
-[3021,"Brown Gray-VY DK",75,70,55],[3031,"Mocha Brown-VY DK",80,60,40],[3032,"Mocha Brown-MED",175,155,130],
-[3033,"Mocha Brown-VY LT",215,200,180],[3041,"Antique Violet-MED",160,130,155],[3042,"Antique Violet-LT",195,170,190],
-[3045,"Yellow Beige-DK",195,165,105],[3046,"Yellow Beige-MED",215,190,140],[3047,"Yellow Beige-LT",235,220,185],
-[3051,"Green Gray-DK",90,105,70],[3052,"Green Gray-MED",130,150,105],[3053,"Green Gray",160,175,135],
-[3325,"Baby Blue-LT",175,205,230],[3326,"Rose-LT",250,175,185],[3328,"Salmon-DK",220,120,110],
-[3340,"Apricot-MED",250,150,100],[3341,"Apricot",250,180,140],[3345,"Hunter Green-DK",40,105,45],
-[3346,"Hunter Green",60,130,60],[3347,"Yellow Green-MED",95,160,90],[3348,"Yellow Green-LT",175,210,155],
-[3350,"Dusty Rose-ULT DK",190,75,100],[3354,"Dusty Rose-LT",235,175,180],[3362,"Pine Green-DK",80,110,65],
-[3363,"Pine Green-MED",105,140,85],[3364,"Pine Green",140,170,115],[3371,"Black Brown",35,20,10],
-[3685,"Mauve-VY DK",145,40,70],[3687,"Mauve",200,115,130],[3688,"Mauve-MED",225,165,175],
-[3689,"Mauve-LT",245,195,200],[3705,"Melon-DK",250,120,110],[3712,"Salmon-MED",235,140,125],
-[3721,"Shell Pink-DK",185,95,95],[3731,"Dusty Rose-VY DK",210,100,115],[3733,"Dusty Rose",235,145,155],
-[3746,"Blue Violet-DK",110,100,175],[3747,"Blue Violet-VY LT",200,205,235],[3750,"Antique Blue-VY DK",50,75,105],
-[3752,"Antique Blue-VY LT",185,200,220],[3755,"Baby Blue",120,165,205],[3760,"Wedgewood-MED",60,125,170],
-[3761,"Sky Blue-LT",145,195,225],[3765,"Peacock Blue-VY DK",35,130,155],[3768,"Gray Green-DK",95,125,120],
-[3776,"Mahogany-LT",200,130,75],[3777,"Terra Cotta-VY DK",165,70,55],[3778,"Terra Cotta-LT",210,145,125],
-[3781,"Mocha Brown-DK",120,95,70],[3782,"Mocha Brown-LT",200,180,155],[3799,"Pewter Gray-VY DK",65,65,65],
-[3820,"Straw-DK",220,185,90],[3821,"Straw",235,205,120],[3822,"Straw-LT",245,225,165],
-[3823,"Yellow-ULT PALE",255,250,215],[3824,"Apricot-LT",250,195,170],[3825,"Pumpkin-PALE",250,175,110],
-[3826,"Golden Brown",185,130,60],[3827,"Golden Brown-PALE",240,190,120],[3828,"Hazel Nut Brown",175,140,90],
-[3829,"Old Gold-VY DK",160,125,35],[3830,"Terra Cotta",185,90,70],[3831,"Raspberry-DK",175,40,70],
-[3832,"Raspberry-MED",205,75,100],[3833,"Raspberry-LT",225,120,140],[3834,"Grape-DK",100,55,100],
-[3835,"Grape-MED",140,90,140],[3836,"Grape-LT",180,140,185],[3837,"Lavender-ULT DK",110,65,140],
-[3838,"Lavender-DK",100,100,175],[3839,"Lavender-MED",130,130,200],[3840,"Lavender-LT",175,175,220],
-[3847,"Teal Green-DK",45,135,120],[3848,"Teal Green-MED",65,160,145],[3849,"Teal Green-LT",90,185,170],
-[3853,"Autumn Gold-DK",225,140,45],[3854,"Autumn Gold-MED",235,165,80],[3855,"Autumn Gold-LT",245,200,130],
-[3856,"Mahogany-ULT VY LT",255,215,185],[3857,"Rosewood-DK",110,40,30],[3858,"Rosewood-MED",155,75,60],
-[3862,"Mocha Beige-DK",145,115,80],[3863,"Mocha Beige-MED",175,145,105],[3864,"Mocha Beige-LT",210,185,155],
-[3865,"Winter White",250,248,240],[3866,"Mocha Brown-ULT VY LT",245,240,230]
+[blanc,"White",255,255,255],[ecru,"Ecru",240,234,218],[208,"Lavender-VY DK",148,91,128],[209,"Lavender-DK",206,154,185],[210,"Lavender-MED",221,186,204],[211,"Lavender-LT",236,218,224],[221,"Shell Pink-VY DK",154,70,76],[223,"Shell Pink-LT",198,130,115],[224,"Shell Pink-VY LT",220,170,155],[225,"Shell Pink-ULT VY LT",242,213,203],[300,"Mahogany-VY DK",143,52,15],[301,"Mahogany-MED",186,96,42],[304,"Christmas Red-MED",175,35,52],[307,"Lemon",255,240,104],[309,"Rose-DK",207,75,93],[310,"Black",0,0,0],[311,"Navy Blue-MED",33,72,112],[312,"Navy Blue-LT",55,98,142],[315,"Antique Mauve-MED",145,84,91],[316,"Antique Mauve",181,122,127],[317,"Pewter Gray",128,120,115],[318,"Steel Gray-LT",164,161,156],[319,"Pistachio Grn-VY DK",47,90,50],[320,"Pistachio Green-MED",88,137,80],[321,"Christmas Red",185,40,55],[322,"Navy Blue",72,120,162],[326,"Rose-VY DK",181,60,75],[327,"Violet-VY DK",95,52,108],[333,"Blue Violet-VY DK",80,68,128],[334,"Baby Blue-MED",109,150,185],[335,"Rose",218,88,104],[336,"Navy Blue",38,56,102],[340,"Blue Violet-MED",148,144,183],[341,"Blue Violet-LT",170,175,205],[347,"Salmon-VY DK",183,58,60],[349,"Coral-DK",196,58,52],[350,"Coral-MED",213,90,80],[351,"Coral",224,120,105],[352,"Coral-LT",237,158,138],[353,"Peach",245,188,166],[355,"Terra Cotta-DK",159,72,52],[356,"Terra Cotta-MED",188,103,78],[367,"Pistachio Green-DK",95,128,88],[368,"Pistachio Green-LT",148,182,138],[369,"Pistachio Green-VY LT",195,220,183],[370,"Mustard-MED",168,142,72],[371,"Mustard",185,158,90],[372,"Mustard-LT",198,176,110],[400,"Mahogany-DK",155,72,30],[402,"Mahogany-VY LT",224,152,105],[407,"Desert Sand-DK",175,118,88],[413,"Pewter Gray-DK",96,90,85],[414,"Steel Gray-DK",138,134,128],[415,"Pearl Gray",218,218,215],[420,"Hazel Nut Brown-DK",148,108,55],[422,"Hazel Nut Brown-LT",195,162,108],[433,"Brown-MED",145,88,44],[434,"Brown-LT",172,115,66],[435,"Brown-VY LT",196,148,90],[436,"Tan",215,175,115],[437,"Tan-LT",228,198,148],[444,"Lemon-DK",251,196,0],[445,"Lemon-LT",255,245,153],[451,"Shell Gray-DK",152,134,122],[452,"Shell Gray-MED",185,171,159],[453,"Shell Gray-LT",213,203,192],[469,"Avocado Green",96,122,52],[470,"Avocado Green-LT",130,161,76],[471,"Avocado Green-VY LT",163,188,112],[472,"Avocado Green-ULT LT",197,214,152],[498,"Christmas Red-DK",160,24,40],[500,"Blue Green-VY DK",30,75,55],[501,"Blue Green-DK",47,100,76],[502,"Blue Green",75,131,103],[503,"Blue Green-MED",107,161,132],[504,"Blue Green-VY LT",180,209,193],[517,"Wedgewood-DK",57,111,148],[518,"Wedgewood-LT",78,148,180],[519,"Sky Blue",132,182,210],[520,"Fern Green-DK",76,95,57],[522,"Fern Green",122,143,96],[523,"Fern Green-LT",153,168,124],[524,"Fern Green-VY LT",181,193,155],[535,"Ash Gray-VY LT",92,92,92],[543,"Beige Brown-ULT VY LT",219,203,182],[550,"Violet-VY DK",83,24,90],[552,"Violet-MED",120,53,127],[553,"Violet",158,91,160],[554,"Violet-LT",202,157,203],[561,"Jade-VY DK",37,99,71],[562,"Jade-MED",64,140,100],[563,"Jade-LT",108,172,139],[564,"Jade-VY LT",155,199,173],[580,"Moss Green-DK",99,104,38],[581,"Moss Green",121,127,47],[597,"Turquoise",63,163,172],[598,"Turquoise-LT",120,193,198],[600,"Cranberry-VY DK",175,23,74],[601,"Cranberry-DK",196,44,94],[602,"Cranberry-MED",213,73,113],[603,"Cranberry",229,113,147],[604,"Cranberry-LT",242,162,181],[605,"Cranberry-VY LT",251,199,210],[606,"Orange Red-BRT",226,44,15],[608,"Orange-BRT",237,95,25],[610,"Drab Brown-DK",123,98,63],[611,"Drab Brown",148,123,84],[612,"Drab Brown-LT",178,158,122],[613,"Drab Brown-VY LT",206,192,163],[632,"Desert Sand-ULT DK",133,79,48],[640,"Beige Gray-VY DK",124,114,95],[642,"Beige Gray-DK",158,148,127],[644,"Beige Gray-MED",195,190,173],[645,"Beaver Gray-VY DK",97,91,86],[646,"Beaver Gray-DK",126,120,113],[647,"Beaver Gray-MED",159,153,147],[648,"Beaver Gray-LT",194,189,183],[666,"Christmas Red-BRT",208,28,38],[676,"Old Gold-LT",213,188,118],[677,"Old Gold-VY LT",228,211,162],[680,"Old Gold-DK",178,142,50],[699,"Christmas Green",18,112,36],[700,"Christmas Green-BRT",26,131,45],[701,"Christmas Green-LT",54,156,67],[702,"Kelly Green",74,175,87],[703,"Chartreuse",104,192,103],[704,"Chartreuse-BRT",148,208,132],[712,"Cream",247,235,210],[718,"Plum",146,33,100],[720,"Orange Spice-DK",203,87,24],[721,"Orange Spice-MED",218,118,48],[722,"Orange Spice-LT",234,158,90],[725,"Topaz",247,192,50],[726,"Topaz-LT",248,209,90],[727,"Topaz-VY LT",252,231,158],[729,"Old Gold-MED",194,157,62],[730,"Olive Green-VY DK",111,104,24],[732,"Olive Green",146,140,48],[733,"Olive Green-MED",169,164,74],[738,"Tan-VY LT",225,194,148],[739,"Tan-ULT VY LT",240,220,188],[740,"Tangerine",247,133,15],[741,"Tangerine-MED",248,157,40],[742,"Tangerine-LT",249,187,85],[743,"Yellow-MED",249,213,110],[744,"Yellow-PALE",249,228,153],[746,"Off White",253,247,224],[747,"Sky Blue-VY LT",215,240,245],[754,"Peach-LT",242,190,158],[758,"Terra Cotta-VY LT",229,168,143],[760,"Salmon",229,148,132],[761,"Salmon-LT",241,179,168],[762,"Pearl Gray-VY LT",230,230,230],[772,"Yellow Green-VY LT",210,225,183],[775,"Baby Blue-VY LT",204,228,240],[776,"Pink-MED",243,163,169],[780,"Topaz-ULT VY DK",149,103,24],[781,"Topaz-VY DK",168,124,37],[782,"Topaz-DK",186,143,46],[783,"Topaz-MED",207,167,68],[791,"Cornflower Blue-VY DK",60,68,120],[793,"Cornflower Blue-MED",109,122,174],[796,"Royal Blue-DK",26,63,135],[797,"Royal Blue",35,82,158],[799,"Delft Blue-MED",98,136,190],[800,"Delft Blue-PALE",169,194,217],[801,"Coffee Brown-DK",103,58,28],[806,"Peacock Blue-DK",40,141,163],[807,"Peacock Blue",68,165,185],[809,"Delft Blue",133,158,196],[813,"Blue-LT",148,183,212],[814,"Garnet-DK",132,14,34],[815,"Garnet-MED",155,24,46],[816,"Garnet",175,33,56],[817,"Coral Red-VY DK",188,42,42],[818,"Baby Pink",254,198,194],[820,"Royal Blue-VY DK",19,50,112],[822,"Beige Gray-LT",215,209,189],[823,"Navy Blue-DK",25,34,95],[825,"Blue-DK",53,112,160],[826,"Blue-MED",77,135,180],[827,"Blue-VY LT",169,203,228],[829,"Golden Olive-VY DK",130,108,52],[831,"Golden Olive-MED",167,143,74],[833,"Golden Olive-LT",205,183,107],[834,"Golden Olive-VY LT",223,205,138],[838,"Beige Brown-VY DK",88,63,38],[839,"Beige Brown-DK",113,84,52],[840,"Beige Brown-MED",142,107,68],[841,"Beige Brown-LT",179,148,111],[842,"Beige Brown-VY LT",208,182,151],[869,"Hazel Nut Brown-VY DK",122,82,38],[890,"Pistachio Green-ULT DK",27,72,30],[891,"Carnation-DK",234,82,100],[892,"Carnation-MED",240,114,127],[893,"Carnation-LT",246,148,157],[894,"Carnation-VY LT",251,184,189],[895,"Hunter Green-VY DK",27,82,36],[898,"Coffee Brown-VY DK",82,42,18],[899,"Rose-MED",235,123,137],[900,"Burnt Orange-DK",191,63,14],[902,"Garnet-VY DK",112,18,36],[904,"Parrot Green-VY DK",63,126,42],[905,"Parrot Green-DK",82,154,55],[906,"Parrot Green-MED",112,184,80],[907,"Parrot Green-LT",152,213,110],[909,"Emerald Green-VY DK",20,120,52],[910,"Emerald Green-DK",29,145,65],[911,"Emerald Green-MED",43,163,79],[912,"Emerald Green-LT",60,186,97],[913,"Nile Green-MED",113,188,139],[915,"Plum-DK",129,15,77],[918,"Red Copper-DK",148,57,28],[919,"Red Copper",176,76,36],[920,"Copper-MED",191,96,48],[921,"Copper",207,116,61],[922,"Copper-LT",222,141,83],[924,"Gray Green-VY DK",68,96,86],[926,"Gray Green-MED",122,151,140],[927,"Gray Green-LT",163,187,178],[928,"Gray Green-VY LT",198,214,209],[930,"Antique Blue-DK",72,96,118],[931,"Antique Blue-MED",101,129,153],[932,"Antique Blue-LT",147,170,188],[934,"Black Avocado",49,58,34],[938,"Coffee Brown-ULT DK",62,33,13],[943,"Aquamarine-MED",44,175,150],[945,"Tawny",240,183,146],[946,"Burnt Orange-MED",212,88,19],[947,"Burnt Orange",228,114,32],[948,"Peach-VY LT",252,219,202],[950,"Desert Sand-LT",218,178,147],[951,"Tawny-LT",246,208,176],[954,"Nile Green",103,185,130],[955,"Nile Green-LT",148,213,165],[956,"Geranium",240,112,106],[957,"Geranium-PALE",250,171,166],[958,"Sea Green-DK",43,175,153],[959,"Sea Green-MED",72,191,170],[961,"Dusty Rose-DK",203,102,113],[962,"Dusty Rose-MED",224,138,144],[963,"Dusty Rose-ULT VY LT",251,203,204],[964,"Sea Green-LT",138,215,201],[966,"Baby Green-MED",162,207,167],[970,"Pumpkin-LT",234,127,36],[971,"Pumpkin",234,113,14],[972,"Canary-DEEP",246,168,12],[973,"Canary-BRT",255,224,0],[975,"Golden Brown-DK",143,88,22],[976,"Golden Brown-MED",193,137,60],[977,"Golden Brown-LT",218,167,94],[986,"Forest Green-VY DK",43,82,34],[987,"Forest Green-DK",62,111,46],[988,"Forest Green-MED",87,141,65],[989,"Forest Green",112,165,88],[991,"Aquamarine-DK",43,126,105],[992,"Aquamarine-MED",68,161,138],[993,"Aquamarine-LT",107,185,162],[995,"Electric Blue-DK",22,133,196],[996,"Electric Blue-MED",49,168,220],[3011,"Khaki Green-DK",124,133,72],[3012,"Khaki Green-MED",148,158,90],[3021,"Brown Gray-VY DK",68,63,47],[3022,"Brown Gray-MED",135,131,110],[3023,"Brown Gray-LT",166,162,143],[3024,"Brown Gray-VY LT",197,194,178],[3031,"Mocha Brown-VY DK",73,52,31],[3032,"Mocha Brown-MED",168,147,120],[3033,"Mocha Brown-VY LT",208,193,171],[3041,"Antique Violet-MED",153,122,147],[3042,"Antique Violet-LT",188,163,183],[3045,"Yellow Beige-DK",188,157,97],[3046,"Yellow Beige-MED",209,183,129],[3047,"Yellow Beige-LT",229,213,174],[3051,"Green Gray-DK",83,97,61],[3052,"Green Gray-MED",123,143,96],[3064,"Desert Sand",187,122,89],[3325,"Baby Blue-LT",168,198,222],[3326,"Rose-LT",245,168,178],[3328,"Salmon-DK",213,112,101],[3340,"Apricot-MED",246,143,91],[3341,"Apricot",248,173,129],[3345,"Hunter Green-DK",36,96,40],[3346,"Hunter Green",54,120,52],[3347,"Yellow Green-MED",88,151,81],[3348,"Yellow Green-LT",168,204,147],[3350,"Dusty Rose-ULT DK",183,65,91],[3354,"Dusty Rose-LT",229,168,172],[3362,"Pine Green-DK",73,101,57],[3363,"Pine Green-MED",97,131,76],[3364,"Pine Green",131,161,103],[3371,"Black Brown",28,14,5],[3607,"Plum-LT",189,62,130],[3685,"Mauve-VY DK",136,33,60],[3687,"Mauve",193,106,120],[3688,"Mauve-MED",218,157,165],[3689,"Mauve-LT",239,188,194],[3705,"Melon-DK",246,111,100],[3706,"Melon-MED",250,148,138],[3712,"Salmon-MED",229,131,115],[3713,"Salmon-VY LT",250,210,203],[3716,"Dusty Rose-VY LT",251,185,185],[3721,"Shell Pink-DK",178,86,86],[3722,"Shell Pink-MED",198,116,104],[3726,"Antique Mauve-DK",157,99,109],[3727,"Antique Mauve-LT",218,178,182],[3731,"Dusty Rose-VY DK",206,100,113],[3733,"Dusty Rose",225,133,143],[3740,"Antique Violet-DK",118,88,110],[3743,"Antique Violet-VY LT",212,200,208],[3746,"Blue Violet-DK",120,112,168],[3747,"Blue Violet-VY LT",200,205,232],[3750,"Antique Blue-VY DK",50,72,98],[3752,"Antique Blue-VY LT",188,200,215],[3753,"Antique Blue-ULT VY LT",215,225,235],[3755,"Baby Blue",120,160,198],[3756,"Baby Blue-ULT VY LT",230,242,250],[3760,"Wedgewood",64,126,155],[3761,"Sky Blue-LT",178,220,235],[3765,"Peacock Blue-VY DK",32,120,140],[3766,"Peacock Blue-LT",100,185,200],[3770,"Tawny-VY LT",252,230,210],[3771,"Terra Cotta-ULT VY LT",243,195,172],[3772,"Desert Sand-MED",182,128,97],[3773,"Desert Sand",200,152,118],[3774,"Desert Sand-VY LT",235,207,185],[3776,"Mahogany-LT",198,118,65],[3778,"Terra Cotta-LT",214,145,120],[3779,"Rosewood-ULT VY LT",248,200,192],[3781,"Mocha Brown-DK",120,96,70],[3782,"Mocha Brown-LT",195,172,148],[3787,"Brown Gray-DK",105,98,82],[3790,"Beige Gray-ULT DK",110,100,80],[3799,"Pewter Gray-VY DK",76,74,70],[3801,"Melon-VY DK",225,75,82],[3802,"Antique Mauve-VY DK",123,66,76],[3803,"Mauve-DK",165,55,90],[3804,"Cyclamen Pink-DK",220,70,122],[3805,"Cyclamen Pink",235,100,148],[3806,"Cyclamen Pink-LT",248,158,186],[3807,"Cornflower Blue",90,110,158],[3808,"Turquoise-ULT VY DK",42,120,128],[3809,"Turquoise-VY DK",52,142,152],[3810,"Turquoise-DK",62,165,175],[3811,"Turquoise-VY LT",178,225,228],[3812,"Sea Green-VY DK",30,148,128],[3813,"Blue Green-LT",152,195,178],[3814,"Aquamarine",48,148,118],[3815,"Celadon Green-DK",75,128,98],[3816,"Celadon Green",105,162,128],[3817,"Celadon Green-LT",148,192,162],[3818,"Emerald Green-ULT VY DK",0,100,48],[3819,"Moss Green-LT",188,200,68],[3820,"Straw-DK",218,178,80],[3821,"Straw",232,200,105],[3822,"Straw-LT",242,218,142],[3823,"Yellow-ULT PALE",255,252,218],[3824,"Apricot-LT",252,195,172],[3825,"Pumpkin-PALE",250,178,118],[3826,"Golden Brown",200,148,70],[3827,"Golden Brown-PALE",242,193,120],[3828,"Hazel Nut Brown",178,145,88],[3829,"Old Gold-VY DK",162,124,32],[3830,"Terra Cotta",188,95,78],[3831,"Raspberry-DK",172,50,62],[3832,"Raspberry-MED",200,78,88],[3833,"Raspberry-LT",225,118,128],[3834,"Grape-DK",108,52,92],[3835,"Grape-MED",148,82,128],[3836,"Grape-LT",195,145,178],[3837,"Lavender-ULT DK",100,52,108],[3838,"Lavender Blue-DK",82,110,158],[3839,"Lavender Blue-MED",112,142,185],[3840,"Lavender Blue-LT",162,188,218],[3841,"Baby Blue-PALE",195,218,238],[3842,"Wedgewood-DK",42,100,140],[3843,"Electric Blue",22,155,220],[3844,"Bright Turquoise-DK",0,172,192],[3845,"Bright Turquoise-MED",0,188,210],[3846,"Bright Turquoise-LT",0,205,228],[3847,"Teal Green-DK",38,120,105],[3848,"Teal Green-MED",62,145,128],[3849,"Teal Green-LT",90,172,152],[3850,"Green-DK",42,130,100],[3851,"Green-LT",80,175,138],[3852,"Straw-VY DK",200,158,52],[3853,"Autumn Gold-DK",228,148,52],[3854,"Autumn Gold-MED",240,172,88],[3855,"Autumn Gold-LT",250,205,130],[3856,"Mahogany-ULT VY LT",248,200,162],[3857,"Rosewood-DK",120,52,40],[3858,"Rosewood-MED",162,78,65],[3859,"Rosewood-LT",200,138,118],[3860,"Cocoa",140,112,98],[3861,"Cocoa-LT",185,158,142],[3862,"Mocha Beige-DK",138,112,80],[3863,"Mocha Beige-MED",165,138,100],[3864,"Mocha Beige-LT",198,175,140],[3865,"Winter White",252,250,245],[3866,"Mocha Brown-ULT VY LT",238,228,212]
 ];
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
-var COLS=60,ROWS=60,CELL=8,ZL=1,VX=0,VY=0;
-var grid=[],palette=[],SI=0,tool='move';
-var hist=[],hlab=[];
-var painting=false,panSt=null,lineSt=null,selRect=null;
-var cpTgt=-1,refImg=null,hasPattern=false;
+// Fix blanc/ecru (literal strings in array)
+(function(){
+  DMC[0][0]='blanc'; DMC[1][0]='ecru';
+})();
 
+var SYMBOLS='ABCDEFGHJKLMNPQRSTUVWXYZ0123456789abcdefghjklmnpqrstuvwxyz@#$%&*+=';
+
+// ═══════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════
+var COLS=40, ROWS=40, CELL=10;
+var grid, palette=[], SI=0;
+var ZL=1, VX=0, VY=0;
+var tool='move', painting=false, panSt=null, lineSt=null;
+var hist=[], hlab=[];
+var refSrc=null;
+var dmcCache={};
+
+// Canvas refs
 var gc=document.getElementById('gc');
 var ctx=gc.getContext('2d');
 var ov=document.getElementById('ov');
 var octx=ov.getContext('2d');
-var area=document.getElementById('canvas-area');
+var area=document.getElementById('canvas-wrap');
+var refC=document.getElementById('ref-canvas');
+var refX=refC.getContext('2d');
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function h2r(h){var m=h.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:null;}
-function r2h(r,g,b){return'#'+[r,g,b].map(function(v){return Math.round(Math.min(255,Math.max(0,v))).toString(16).padStart(2,'0');}).join('');}
-function nRgb(px,pal){var b=0,bd=1e9;for(var i=0;i<pal.length;i++){var d=Math.pow(px[0]-pal[i][0],2)+Math.pow(px[1]-pal[i][1],2)+Math.pow(px[2]-pal[i][2],2);if(d<bd){bd=d;b=i;}}return b;}
-function nHex(px,pal){var lab1=rgb2lab(px[0],px[1],px[2]);var b=0,bd=1e9;for(var i=0;i<pal.length;i++){var rgb=h2r(pal[i]);if(!rgb)continue;var lab2=rgb2lab(rgb[0],rgb[1],rgb[2]);var d=labDist(lab1,lab2);if(d<bd){bd=d;b=i;}}return b;}
-// nDMC: match to nearest DMC using perceptual LAB distance
-function nDMC(hex){
+// ═══════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════
+function h2r(h){
+  h=h.replace('#','');
+  if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  var v=parseInt(h,16);
+  if(isNaN(v))return null;
+  return[(v>>16)&255,(v>>8)&255,v&255];
+}
+function r2h(r,g,b){return'#'+(('000000'+((r<<16)|(g<<8)|b).toString(16)).slice(-6));}
+function colorDist(r1,g1,b1,r2,g2,b2){
+  // Weighted Euclidean in LAB-like approximation
+  var mr=(r1+r2)/2;
+  var dr=r1-r2,dg=g1-g2,db=b1-b2;
+  return (2+mr/256)*dr*dr + 4*dg*dg + (2+(255-mr)/256)*db*db;
+}
+function nearDMC(hex){
+  if(dmcCache[hex])return dmcCache[hex];
   var rgb=h2r(hex);
   if(!rgb)return{num:'--',name:'Unknown',hex:hex};
-  var lab1=rgb2lab(rgb[0],rgb[1],rgb[2]);
-  var b=null,bd=1e9;
+  var best=null,bd=1e18;
   for(var i=0;i<DMC.length;i++){
-    var e=DMC[i];
-    var lab2=rgb2lab(e[2],e[3],e[4]);
-    var d=labDist(lab1,lab2);
-    if(d<bd){bd=d;b={num:e[0],name:e[1],hex:r2h(e[2],e[3],e[4])};}
+    var d=colorDist(rgb[0],rgb[1],rgb[2],DMC[i][2],DMC[i][3],DMC[i][4]);
+    if(d<bd){bd=d;best=i;}
   }
-  return b||{num:'--',name:'Unknown',hex:hex};
+  var d2={num:DMC[best][0],name:DMC[best][1],hex:r2h(DMC[best][2],DMC[best][3],DMC[best][4])};
+  dmcCache[hex]=d2;return d2;
 }
-// nDMCExclude: find nearest DMC not in exclusion set (for dedup)
-function nDMCExclude(hex, excludeHexSet){
-  var rgb=h2r(hex);
-  if(!rgb)return{num:'--',name:'Unknown',hex:hex};
-  var lab1=rgb2lab(rgb[0],rgb[1],rgb[2]);
-  var b=null,bd=1e9;
-  for(var i=0;i<DMC.length;i++){
-    var e=DMC[i];
-    var eh=r2h(e[2],e[3],e[4]);
-    if(excludeHexSet&&excludeHexSet[eh])continue;
-    var lab2=rgb2lab(e[2],e[3],e[4]);
-    var d=labDist(lab1,lab2);
-    if(d<bd){bd=d;b={num:e[0],name:e[1],hex:eh};}
-  }
-  return b||nDMC(hex);
-}
+function getSYM(i){return i>=0&&i<SYMBOLS.length?SYMBOLS[i]:'?';}
 function inB(c,r){return c>=0&&c<COLS&&r>=0&&r<ROWS;}
-function getCell(e){var rc=gc.getBoundingClientRect();var ds=Math.max(0.1,CELL*ZL);return[Math.floor((e.clientX-rc.left)/ds+VX),Math.floor((e.clientY-rc.top)/ds+VY)];}
-function showProgress(txt){var w=document.getElementById('progress-wrap');w.classList.add('show');document.getElementById('prog-txt').textContent=txt||'Processing…';}
-function hideProgress(){document.getElementById('progress-wrap').classList.remove('show');}
-function showEmpty(v){var e=document.getElementById('empty-state');if(v)e.classList.remove('hidden');else e.classList.add('hidden');}
-
-// ── UPLOAD / DRAG-DROP ────────────────────────────────────────────────────────
-function dzOver(e){e.preventDefault();document.getElementById('dropzone').classList.add('drag');}
-function dzLeave(){document.getElementById('dropzone').classList.remove('drag');}
-function dzDrop(e){e.preventDefault();document.getElementById('dropzone').classList.remove('drag');var f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))loadFile(f);}
-function onFileSelect(inp){if(inp.files[0])loadFile(inp.files[0]);}
-function resetUpload(){
-  document.getElementById('dropzone').style.display='block';
-  document.getElementById('refimg').style.display='none';
-  document.getElementById('re-btn').style.display='none';
-  document.getElementById('cvt-btn').disabled=true;
-  document.getElementById('cvt-btn').style.opacity='.6';
-  refImg=null;
-}
-function loadFile(file){
-  var reader=new FileReader();
-  reader.onload=function(e){
-    var img=new Image();
-    img.onload=function(){
-      refImg=img;
-      var ri=document.getElementById('refimg');ri.src=e.target.result;ri.style.display='block';
-      document.getElementById('dropzone').style.display='none';
-      document.getElementById('re-btn').style.display='block';
-      var btn=document.getElementById('cvt-btn');
-      btn.disabled=false;btn.style.opacity='1';btn.textContent='▶ Convert to Pattern';
-      // Update right panel reference preview
-      var rp=document.getElementById('ref-preview');
-      rp.src=e.target.result;rp.style.display='block';
-      document.getElementById('ref-placeholder').style.display='none';
-      onSz(); // refresh size label with aspect ratio
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file);
+function getCell(e){
+  var rc=gc.getBoundingClientRect(),ds=Math.max(.1,CELL*ZL);
+  return[Math.floor((e.clientX-rc.left)/ds+VX),Math.floor((e.clientY-rc.top)/ds+VY)];
 }
 
-// ── SLIDER LABELS ─────────────────────────────────────────────────────────────
-function onSz(){
-  var v=parseInt(document.getElementById('sz').value);
-  var lbl=v+' × '+v;
-  if(refImg){
-    var iw=refImg.width,ih=refImg.height,asp=iw/ih;
-    var cw,ch;
-    if(asp>=1){cw=v;ch=Math.max(1,Math.round(v/asp));}else{ch=v;cw=Math.max(1,Math.round(v*asp));}
-    lbl=cw+' × '+ch;
-  }
-  document.getElementById('szv').textContent=lbl;
-}
-function onNc(){document.getElementById('ncv').textContent=document.getElementById('nc').value;}
-function onBg(){document.getElementById('bgv').textContent=document.getElementById('bg').value;}
-
-// ── COLOR SPACE CONVERSIONS ───────────────────────────────────────────────────
-function rgb2hsl(r,g,b){
-  r/=255;g/=255;b/=255;
-  var mx=Math.max(r,g,b),mn=Math.min(r,g,b),h=0,s=0,l=(mx+mn)/2;
-  if(mx!==mn){var d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);
-    if(mx===r)h=((g-b)/d+(g<b?6:0))/6;
-    else if(mx===g)h=((b-r)/d+2)/6;
-    else h=((r-g)/d+4)/6;}
-  return[h*360,s,l];
-}
-
-// sRGB -> linear -> XYZ -> LAB for perceptual distance
-function rgb2lab(r,g,b){
-  function lin(c){c/=255;return c>0.04045?Math.pow((c+0.055)/1.055,2.4):c/12.92;}
-  var rl=lin(r),gl=lin(g),bl=lin(b);
-  var x=(rl*0.4124+gl*0.3576+bl*0.1805)/0.9505;
-  var y=(rl*0.2126+gl*0.7152+bl*0.0722)/1.0000;
-  var z=(rl*0.0193+gl*0.1192+bl*0.9505)/1.0890;
-  function f(t){return t>0.008856?Math.pow(t,1/3):7.787*t+16/116;}
-  var fx=f(x),fy=f(y),fz=f(z);
-  return[116*fy-16, 500*(fx-fy), 200*(fy-fz)];
-}
-function labDist(lab1,lab2){
-  return Math.sqrt(Math.pow(lab1[0]-lab2[0],2)+Math.pow(lab1[1]-lab2[1],2)+Math.pow(lab1[2]-lab2[2],2));
-}
-
-// ── HSL-ZONE AWARE QUANTIZATION ───────────────────────────────────────────────
-// Finer zones including brown/dark to protect eye/beak/leg colors
-function getHueZone(h,s,l){
-  // Very dark pixels (eyes, outlines) -> own zone regardless of hue
-  if(l<0.12) return 'dark';
-  // Very light/desaturated -> neutral
-  if(s<0.10||l>0.90) return 'neutral';
-  // Browns: orange hue but low-medium saturation & medium-low lightness
-  if(h>=15&&h<50&&s<0.65&&l<0.55) return 'brown';
-  if(h<18||h>=330) return 'red';
-  if(h<50) return 'orange';
-  if(h<75) return 'yellow';
-  if(h<105) return 'yellowgreen';
-  if(h<165) return 'green';
-  if(h<200) return 'cyan';
-  if(h<255) return 'blue';
-  if(h<290) return 'purple';
-  return 'pink';
-}
-
-function smartQuantize(pixels, nColors){
-  if(!pixels.length) return[[128,128,128]];
-
-  // 1. Classify pixels by hue zone
-  var zones={};
-  var total=pixels.length;
-  pixels.forEach(function(p){
-    var hsl=rgb2hsl(p[0],p[1],p[2]);
-    var z=getHueZone(hsl[0],hsl[1],hsl[2]);
-    if(!zones[z]) zones[z]={pixels:[],count:0};
-    zones[z].pixels.push(p);
-    zones[z].count++;
-  });
-
-  var zoneNames=Object.keys(zones);
-
-  // 2. Give each zone a proportional quota, cap at 30% to prevent monopoly
-  var maxPerZone=Math.max(2, Math.floor(nColors * 0.30));
-  var rawQuotas={};
-  zoneNames.forEach(function(z){
-    // Zones with tiny pixel counts still get 1 slot so small details aren't lost
-    var prop=zones[z].count/total;
-    rawQuotas[z]=Math.max(1, Math.round(prop*nColors));
-  });
-
-  // 3. Iteratively clamp and redistribute until sum == nColors
-  for(var iter=0;iter<5;iter++){
-    var sum=0;
-    zoneNames.forEach(function(z){ rawQuotas[z]=Math.min(rawQuotas[z],maxPerZone); sum+=rawQuotas[z]; });
-    var diff=nColors-sum;
-    if(diff===0) break;
-    var ranked=zoneNames.slice().sort(function(a,b){ return zones[b].count-zones[a].count; });
-    for(var j=0;j<ranked.length&&diff!==0;j++){
-      var z=ranked[j];
-      if(diff>0&&rawQuotas[z]<maxPerZone){ rawQuotas[z]++;diff--; }
-      else if(diff<0&&rawQuotas[z]>1){ rawQuotas[z]--;diff++; }
-    }
-  }
-
-  // 4. Run median cut within each zone
-  var allCentroids=[];
-  zoneNames.forEach(function(z){
-    var cs=medianCutRaw(zones[z].pixels, rawQuotas[z]||1);
-    cs.forEach(function(c){ allCentroids.push(c); });
-  });
-
-  return allCentroids;
-}
-
-function medianCutRaw(pixels,n){
-  if(!pixels.length)return[[128,128,128]];
-  if(n<=1){
-    var s=[0,0,0];pixels.forEach(function(p){s[0]+=p[0];s[1]+=p[1];s[2]+=p[2];});
-    var l=pixels.length;return[[Math.round(s[0]/l),Math.round(s[1]/l),Math.round(s[2]/l)]];
-  }
-  function mkBucket(px){
-    var r0=255,r1=0,g0=255,g1=0,b0=255,b1=0;
-    px.forEach(function(p){r0=Math.min(r0,p[0]);r1=Math.max(r1,p[0]);g0=Math.min(g0,p[1]);g1=Math.max(g1,p[1]);b0=Math.min(b0,p[2]);b1=Math.max(b1,p[2]);});
-    return{px:px,rng:[r1-r0,g1-g0,b1-b0]};
-  }
-  var buckets=[mkBucket(pixels)];
-  while(buckets.length<n&&buckets.some(function(b){return b.px.length>1;})){
-    buckets.sort(function(a,b){return Math.max.apply(null,b.rng)-Math.max.apply(null,a.rng);});
-    var big=buckets.shift();
-    if(big.px.length<=1){buckets.push(big);break;}
-    var ch=big.rng.indexOf(Math.max.apply(null,big.rng));
-    big.px.sort(function(a,b){return a[ch]-b[ch];});
-    var mid=Math.floor(big.px.length/2);
-    buckets.push(mkBucket(big.px.slice(0,mid)));
-    buckets.push(mkBucket(big.px.slice(mid)));
-  }
-  return buckets.map(function(bk){
-    var s=[0,0,0];var l=bk.px.length;
-    bk.px.forEach(function(p){s[0]+=p[0];s[1]+=p[1];s[2]+=p[2];});
-    return[Math.round(s[0]/l),Math.round(s[1]/l),Math.round(s[2]/l)];
-  });
-}
-
-// Keep old name for compatibility
-function medianCut(pixels,n){ return medianCutRaw(pixels,n); }
-
-// ── IMAGE CONVERSION ──────────────────────────────────────────────────────────
-function convertImage(){
-  if(!refImg){alert('Please upload an image first.');return;}
-  var btn=document.getElementById('cvt-btn');btn.textContent='Converting…';btn.disabled=true;
-  showProgress('Reading image pixels…');
-  setTimeout(doConvert,40);
-}
-// BG mode state
-var bgMode='off'; var bgPickColor=[255,255,255];
-
-function setBgMode(mode){
-  bgMode=mode;
-  document.querySelectorAll('.bg-mode-btn').forEach(function(b){
-    b.style.background='rgba(255,255,255,.1)';b.style.color='rgba(255,255,255,.7)';b.style.borderColor='rgba(255,255,255,.2)';
-  });
-  var active=document.getElementById('bg-'+mode);
-  if(active){active.style.background='rgba(255,255,255,.28)';active.style.color='#fff';active.style.borderColor='rgba(255,255,255,.5)';}
-  document.getElementById('bg-pick-row').style.display=mode==='pick'?'flex':'none';
-  document.getElementById('bg-thresh-row').style.display=(mode==='auto'||mode==='white'||mode==='pick')?'block':'none';
-  var hints={off:'No background removal',auto:'Auto-detect BG from image corners',white:'Remove near-white pixels only',pick:'Remove pixels matching picked color'};
-  document.getElementById('bg-hint').textContent=hints[mode]||'';
-}
-function bgColorPick(){
-  var v=document.getElementById('bg-color-input').value;
-  document.getElementById('bg-color-preview').style.background=v;
-  var m=v.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
-  if(m)bgPickColor=[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)];
-}
-function colorDist(r1,g1,b1,r2,g2,b2){return Math.sqrt(Math.pow(r1-r2,2)+Math.pow(g1-g2,2)+Math.pow(b1-b2,2));}
-function detectBgColor(px,w,h){
-  // Sample corners (top-left, top-right, bottom-left, bottom-right) 5x5 area
-  var samples=[];
-  var corners=[[0,0],[w-5,0],[0,h-5],[w-5,h-5],[Math.floor(w/2)-2,0],[0,Math.floor(h/2)-2]];
-  corners.forEach(function(c){
-    for(var dy=0;dy<4;dy++)for(var dx=0;dx<4;dx++){
-      var idx=((c[1]+dy)*w+(c[0]+dx))*4;
-      if(px[idx+3]>200)samples.push([px[idx],px[idx+1],px[idx+2]]);
-    }
-  });
-  if(!samples.length)return[255,255,255];
-  var sr=0,sg=0,sb=0;
-  samples.forEach(function(s){sr+=s[0];sg+=s[1];sb+=s[2];});
-  return[Math.round(sr/samples.length),Math.round(sg/samples.length),Math.round(sb/samples.length)];
-}
-function isBgPixel(r,g,b,a,bgR,bgG,bgB,tol){
-  if(a<30)return true;
-  return colorDist(r,g,b,bgR,bgG,bgB)<tol;
-}
-
-function doConvert(){
-  var sz=parseInt(document.getElementById('sz').value);
-  var nColors=parseInt(document.getElementById('nc').value);
-  var tol=parseInt(document.getElementById('bg').value)||30;
-
-  // Draw full-res for BG detection
-  var ocFull=document.createElement('canvas');ocFull.width=refImg.width;ocFull.height=refImg.height;
-  var oxFull=ocFull.getContext('2d');oxFull.drawImage(refImg,0,0);
-  var fullData=oxFull.getImageData(0,0,refImg.width,refImg.height);
-
-  // Preserve aspect ratio when scaling to pattern grid
-  var iw=refImg.width,ih=refImg.height;
-  var aspect=iw/ih;
-  var COLS_sz,ROWS_sz;
-  if(aspect>=1){ COLS_sz=sz; ROWS_sz=Math.max(1,Math.round(sz/aspect)); }
-  else          { ROWS_sz=sz; COLS_sz=Math.max(1,Math.round(sz*aspect)); }
-
-  var oc=document.createElement('canvas');oc.width=COLS_sz;oc.height=ROWS_sz;
-  var ox=oc.getContext('2d');ox.drawImage(refImg,0,0,COLS_sz,ROWS_sz);
-  var imgData=ox.getImageData(0,0,COLS_sz,ROWS_sz);var px=imgData.data;
-
-  // Detect BG color
-  var bgR=255,bgG=255,bgB=255;
-  if(bgMode==='auto'){
-    var det=detectBgColor(fullData.data,refImg.width,refImg.height);
-    bgR=det[0];bgG=det[1];bgB=det[2];
-  } else if(bgMode==='white'){
-    bgR=255;bgG=255;bgB=255;
-  } else if(bgMode==='pick'){
-    bgR=bgPickColor[0];bgG=bgPickColor[1];bgB=bgPickColor[2];
-  }
-
-  var pixels=[];
-  for(var i=0;i<COLS_sz*ROWS_sz;i++){
-    var r=px[i*4],g=px[i*4+1],b=px[i*4+2],a=px[i*4+3];
-    if(a<30)continue;
-    if(bgMode!=='off'&&isBgPixel(r,g,b,a,bgR,bgG,bgB,tol))continue;
-    pixels.push([r,g,b]);
-  }
-  showProgress('Quantizing colors to DMC palette…');
-  setTimeout(function(){
-    // Use hue-zone-aware quantization so no single hue monopolises all slots
-    var palRGB=smartQuantize(pixels.length?pixels.slice():[[128,128,128]],nColors);
-
-    // Map each centroid to nearest DMC using perceptual LAB distance.
-    // Enforce uniqueness: if two centroids map to the same DMC,
-    // find the next-best DMC for the duplicate.
-    var usedDMC={};
-    var dmcPal=[];
-    palRGB.forEach(function(rgb){
-      var hex=r2h(rgb[0],rgb[1],rgb[2]);
-      var match=nDMC(hex);
-      if(!usedDMC[match.hex]){
-        usedDMC[match.hex]=true;
-        dmcPal.push(match.hex);
-      } else {
-        var alt=nDMCExclude(hex, usedDMC);
-        if(alt&&!usedDMC[alt.hex]){
-          usedDMC[alt.hex]=true;
-          dmcPal.push(alt.hex);
-        }
-        // truly identical -> skip (rare)
-      }
-    });
-
-    showProgress('Building stitch grid…');
-    setTimeout(function(){
-      COLS=COLS_sz;ROWS=ROWS_sz;palette=dmcPal;SI=0;
-      grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
-      for(var i=0;i<COLS_sz*ROWS_sz;i++){
-        var r2=px[i*4],g2=px[i*4+1],b2=px[i*4+2],a2=px[i*4+3];
-        if(a2<30)continue;
-        if(bgMode!=='off'&&isBgPixel(r2,g2,b2,a2,bgR,bgG,bgB,tol))continue;
-        var row=Math.floor(i/COLS_sz),col=i%COLS_sz;
-        grid[row][col]=nHex([r2,g2,b2],palette);
-      }
-      hasPattern=true;showEmpty(false);
-      updPal();updSt();updDMC();
-      pushHist('Converted image ('+COLS_sz+'x'+ROWS_sz+', '+dmcPal.length+' colors)');
-      fitZoom();hideProgress();
-      var btn=document.getElementById('cvt-btn');btn.textContent='▶ Re-convert';btn.disabled=false;btn.style.opacity='1';
-    },30);
-  },30);
-}
-
-// ── RENDER ────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════
 function render(){
-  var sbW=document.getElementById('sidebar').offsetWidth||240;
-  var tbH=document.getElementById('toolbar').offsetHeight||44;
-  var stH=document.getElementById('statusbar').offsetHeight||26;
-  var aW=area.offsetWidth||(window.innerWidth-sbW)||800;
-  var aH=area.offsetHeight||(window.innerHeight-tbH-stH)||600;
-  if(aW<100)aW=window.innerWidth-sbW;if(aH<100)aH=window.innerHeight-tbH-stH;
-  if(aW<100)aW=800;if(aH<100)aH=600;
+  var aW=area.offsetWidth||800, aH=area.offsetHeight-4||500;
   if(gc.width!==aW||gc.height!==aH){gc.width=aW;gc.height=aH;ov.width=aW;ov.height=aH;}
-  var W=gc.width,H=gc.height,ds=Math.max(0.1,CELL*ZL);
-  var sg=document.getElementById('sgr').checked,ss=document.getElementById('ssy').checked;
-  ctx.clearRect(0,0,W,H);ctx.fillStyle='#f0ece3';ctx.fillRect(0,0,W,H);
-  if(!hasPattern)return;
+  var W=gc.width,H=gc.height;
+  var ds=Math.max(0.1,CELL*ZL);
+  var sg=document.getElementById('showGrid').checked;
+  var ss=document.getElementById('showSym').checked;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a1610';ctx.fillRect(0,0,W,H);
+
   for(var r=0;r<ROWS;r++){
     for(var c=0;c<COLS;c++){
       var px=Math.round((c-VX)*ds),py=Math.round((r-VY)*ds);
       if(px+ds<0||py+ds<0||px>W||py>H)continue;
       var ci=grid[r][c];
       if(ci>=0&&ci<palette.length){
-        ctx.fillStyle=palette[ci];ctx.fillRect(px,py,ds,ds);
-        if(ss&&ds>=8){
-          var rgb=h2r(palette[ci]);var lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
-          ctx.fillStyle=lum>140?'rgba(0,0,0,.6)':'rgba(255,255,255,.8)';
-          ctx.font=Math.max(6,ds-3)+'px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
-          ctx.fillText(SYM[ci%SYM.length],px+ds/2,py+ds/2);
+        ctx.fillStyle=palette[ci];
+        ctx.fillRect(px,py,Math.ceil(ds),Math.ceil(ds));
+        if(ss&&ds>=10){
+          var rgb=h2r(palette[ci]);
+          var lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
+          ctx.fillStyle=lum>145?'rgba(0,0,0,.65)':'rgba(255,255,255,.85)';
+          ctx.font='bold '+Math.max(6,Math.min(ds-4,14))+'px monospace';
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(getSYM(ci),px+ds/2,py+ds/2);
         }
       }
-      if(sg&&ds>=3){ctx.strokeStyle='rgba(100,100,100,.18)';ctx.lineWidth=.5;ctx.strokeRect(px,py,ds,ds);}
+      if(sg&&ds>=3){
+        var gAlpha=ds>8?0.25:0.12;
+        ctx.strokeStyle='rgba(200,180,100,'+gAlpha+')';
+        ctx.lineWidth=.5;
+        ctx.strokeRect(px+.5,py+.5,Math.ceil(ds)-1,Math.ceil(ds)-1);
+      }
     }
   }
+  // Bold 10-grid lines
   if(sg&&ds>=3){
-    ctx.strokeStyle='rgba(50,50,50,.28)';ctx.lineWidth=1;
-    for(var r2=0;r2<=ROWS;r2+=10){var py2=Math.round((r2-VY)*ds);if(py2>=0&&py2<=H){ctx.beginPath();ctx.moveTo(0,py2);ctx.lineTo(W,py2);ctx.stroke();}}
-    for(var c2=0;c2<=COLS;c2+=10){var px2=Math.round((c2-VX)*ds);if(px2>=0&&px2<=W){ctx.beginPath();ctx.moveTo(px2,0);ctx.lineTo(px2,H);ctx.stroke();}}
+    ctx.strokeStyle='rgba(201,168,76,.5)';ctx.lineWidth=1;
+    for(var r2=0;r2<=ROWS;r2+=10){var py2=Math.round((r2-VY)*ds);ctx.beginPath();ctx.moveTo(0,py2);ctx.lineTo(W,py2);ctx.stroke();}
+    for(var c2=0;c2<=COLS;c2+=10){var px2=Math.round((c2-VX)*ds);ctx.beginPath();ctx.moveTo(px2,0);ctx.lineTo(px2,H);ctx.stroke();}
   }
+
   octx.clearRect(0,0,ov.width,ov.height);
-  if(selRect){
-    var ds2=Math.max(.1,CELL*ZL),spx=Math.round((selRect.x-VX)*ds2),spy=Math.round((selRect.y-VY)*ds2);
-    octx.strokeStyle='rgba(90,122,90,.9)';octx.lineWidth=1.5;octx.setLineDash([4,3]);
-    octx.strokeRect(spx,spy,selRect.w*ds2,selRect.h*ds2);octx.setLineDash([]);
-    octx.fillStyle='rgba(90,122,90,.08)';octx.fillRect(spx,spy,selRect.w*ds2,selRect.h*ds2);
-  }
-  if(lineSt&&tool==='line'){
-    var ds3=Math.max(.1,CELL*ZL);
-    octx.strokeStyle='rgba(90,122,90,.7)';octx.lineWidth=1;octx.setLineDash([3,2]);
-    octx.beginPath();
-    octx.moveTo(Math.round((lineSt[0]-VX)*ds3+ds3/2),Math.round((lineSt[1]-VY)*ds3+ds3/2));
-    octx.lineTo(Math.round((lineSt[2]-VX)*ds3+ds3/2),Math.round((lineSt[3]-VY)*ds3+ds3/2));
-    octx.stroke();octx.setLineDash([]);
-  }
+  updSt();
 }
 
-// ── ZOOM & PAN ────────────────────────────────────────────────────────────────
-function doZoom(f){ZL=Math.max(.05,Math.min(16,ZL*f));document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';render();}
-function fitZoom(){VX=0;VY=0;var aw=area.offsetWidth||800,ah=area.offsetHeight||600;ZL=Math.min(aw/(COLS*CELL),ah/(ROWS*CELL));ZL=Math.max(0.05,ZL);document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';render();}
-function resetView(){ZL=1;VX=0;VY=0;document.getElementById('zpct').textContent='100%';render();}
+function updSt(){
+  var ct=parseInt(document.getElementById('fab').value)||14;
+  var wc=(COLS/ct*2.54).toFixed(1), hc=(ROWS/ct*2.54).toFixed(1);
+  document.getElementById('stsz').textContent=COLS+'×'+ROWS;
+  document.getElementById('stzm').textContent=Math.round(ZL*100)+'%';
+  document.getElementById('fcm').textContent=wc+' × '+hc+' cm';
+  document.getElementById('stcm').textContent=wc+' × '+hc+' cm';
+  document.getElementById('stfab').textContent=document.getElementById('fab').options[document.getElementById('fab').selectedIndex]?.text||'14ct';
+}
+
+function fitZoom(){
+  VX=0;VY=0;
+  var aw=area.offsetWidth||800, ah=area.offsetHeight||500;
+  ZL=Math.min(aw/(COLS*CELL)*0.95, ah/(ROWS*CELL)*0.95);
+  ZL=Math.max(0.1,ZL);
+  document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';
+  render();
+}
+function doZoom(f){
+  ZL=Math.max(.05,Math.min(20,ZL*f));
+  document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';
+  render();
+}
+
 area.addEventListener('wheel',function(e){
-  e.preventDefault();var rc=gc.getBoundingClientRect(),ds=Math.max(.1,CELL*ZL);
+  e.preventDefault();
+  var rc=gc.getBoundingClientRect(),ds=Math.max(.1,CELL*ZL);
   var cx=(e.clientX-rc.left)/ds+VX,cy=(e.clientY-rc.top)/ds+VY;
-  ZL=Math.max(.05,Math.min(16,ZL*(e.deltaY<0?1.15:.87)));
-  var ds2=Math.max(.1,CELL*ZL);VX=Math.max(0,cx-(e.clientX-rc.left)/ds2);VY=Math.max(0,cy-(e.clientY-rc.top)/ds2);
-  document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';render();
+  ZL=Math.max(.05,Math.min(20,ZL*(e.deltaY<0?1.15:.87)));
+  var ds2=Math.max(.1,CELL*ZL);
+  VX=Math.max(0,cx-(e.clientX-rc.left)/ds2);
+  VY=Math.max(0,cy-(e.clientY-rc.top)/ds2);
+  document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';
+  render();
 },{passive:false});
 
-// ── TOOLS ─────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// TOOLS
+// ═══════════════════════════════════════════════════════════════════
 function setTool(t,btn){
-  tool=t;document.querySelectorAll('.tb-btn').forEach(function(b){b.classList.remove('act');});
-  if(btn)btn.classList.add('act');
-  document.getElementById('stl').textContent=t.charAt(0).toUpperCase()+t.slice(1);
-  selRect=null;render();
+  tool=t;
+  document.querySelectorAll('.tb-btn').forEach(function(b){b.classList.remove('act');});
+  btn.classList.add('act');
+  var cur={move:'grab',paint:'crosshair',erase:'cell',fill:'crosshair',pick:'crosshair'};
+  area.style.cursor=cur[t]||'crosshair';
+  document.getElementById('stl').textContent=btn.textContent.trim();
 }
-gc.addEventListener('mousedown',function(e){
-  if(!hasPattern)return;var pos=getCell(e);
-  if(tool==='move'){panSt={mx:e.clientX,my:e.clientY,vx:VX,vy:VY};painting=false;}
-  else if(tool==='paint'){painting=true;pushHistSnap();paintCell(pos[0],pos[1]);}
-  else if(tool==='erase'){painting=true;pushHistSnap();eraseCell(pos[0],pos[1]);}
-  else if(tool==='fill'){pushHistSnap();floodFill(pos[0],pos[1],SI);render();updDMC();}
-  else if(tool==='pick'){pickCell(pos[0],pos[1]);}
-  else if(tool==='line'){lineSt=[pos[0],pos[1],pos[0],pos[1]];}
-  else if(tool==='select'){selRect={x:pos[0],y:pos[1],w:1,h:1};painting=true;}
-});
-gc.addEventListener('mousemove',function(e){
-  if(!hasPattern)return;var pos=getCell(e);
-  if(inB(pos[0],pos[1])){
-    document.getElementById('stp').textContent=(pos[0]+1)+', '+(pos[1]+1);
-    var ci=grid[pos[1]]?grid[pos[1]][pos[0]]:-1;
-    if(ci>=0&&ci<palette.length){document.getElementById('stcol').style.background=palette[ci];document.getElementById('sthex').textContent=palette[ci];}
+function paintCell(c,r){
+  if(!inB(c,r))return false;
+  if(tool==='erase'){if(grid[r][c]===-1)return false;grid[r][c]=-1;return true;}
+  if(tool==='paint'){if(SI<0||SI>=palette.length||grid[r][c]===SI)return false;grid[r][c]=SI;return true;}
+  return false;
+}
+function flood(c,r,from,to){
+  if(from===to)return;
+  var stk=[[c,r]];
+  while(stk.length){
+    var p=stk.pop(),cc=p[0],rr=p[1];
+    if(!inB(cc,rr)||grid[rr][cc]!==from)continue;
+    grid[rr][cc]=to;
+    stk.push([cc+1,rr],[cc-1,rr],[cc,rr+1],[cc,rr-1]);
   }
-  if(tool==='move'&&panSt){var ds=Math.max(.1,CELL*ZL);VX=Math.max(0,panSt.vx-(e.clientX-panSt.mx)/ds);VY=Math.max(0,panSt.vy-(e.clientY-panSt.my)/ds);render();return;}
-  if(tool==='line'&&lineSt){lineSt[2]=pos[0];lineSt[3]=pos[1];render();return;}
-  if(tool==='select'&&painting&&selRect){selRect.w=Math.max(1,pos[0]-selRect.x+1);selRect.h=Math.max(1,pos[1]-selRect.y+1);render();return;}
-  if(painting){if(tool==='paint')paintCell(pos[0],pos[1]);else if(tool==='erase')eraseCell(pos[0],pos[1]);}
+}
+
+area.addEventListener('mousedown',function(e){
+  var p=getCell(e),c=p[0],r=p[1];
+  if(tool==='move'){painting=true;area.style.cursor='grabbing';panSt={x:e.clientX,y:e.clientY,vx:VX,vy:VY};return;}
+  if(tool==='pick'){if(inB(c,r)&&grid[r][c]>=0){SI=grid[r][c];updPal();}return;}
+  if(tool==='fill'){if(!inB(c,r))return;pushH('Fill');flood(c,r,grid[r][c],SI);render();updDMC();return;}
+  pushH(tool==='erase'?'Erase':'Paint');painting=true;paintCell(c,r);render();
 });
-gc.addEventListener('mouseup',function(e){
-  if(!hasPattern)return;var pos=getCell(e);
-  if(tool==='line'&&lineSt){pushHistSnap();drawLine(lineSt[0],lineSt[1],pos[0],pos[1],SI);lineSt=null;render();updDMC();}
-  painting=false;panSt=null;
+area.addEventListener('mousemove',function(e){
+  var p=getCell(e),c=p[0],r=p[1];
+  document.getElementById('stp').textContent=inB(c,r)?(c+1)+','+(r+1):'--';
+  if(tool==='move'&&painting&&panSt){
+    var ds=Math.max(.1,CELL*ZL);
+    VX=Math.max(0,panSt.vx-(e.clientX-panSt.x)/ds);
+    VY=Math.max(0,panSt.vy-(e.clientY-panSt.y)/ds);
+    render();return;
+  }
+  if(painting&&(tool==='paint'||tool==='erase')){paintCell(c,r);render();}
+});
+area.addEventListener('mouseup',function(){
+  if(tool==='move')area.style.cursor='grab';
+  painting=false;
   if(tool==='paint'||tool==='erase')updDMC();
 });
-gc.addEventListener('mouseleave',function(){painting=false;panSt=null;});
-gc.addEventListener('touchstart',function(e){e.preventDefault();var t=e.touches[0];gc.dispatchEvent(new MouseEvent('mousedown',{clientX:t.clientX,clientY:t.clientY}));},{passive:false});
-gc.addEventListener('touchmove',function(e){e.preventDefault();var t=e.touches[0];gc.dispatchEvent(new MouseEvent('mousemove',{clientX:t.clientX,clientY:t.clientY}));},{passive:false});
-gc.addEventListener('touchend',function(e){e.preventDefault();gc.dispatchEvent(new MouseEvent('mouseup',{}));},{passive:false});
+area.addEventListener('mouseleave',function(){painting=false;document.getElementById('stp').textContent='--';});
 
-function paintCell(c,r){if(!inB(c,r))return;if(grid[r][c]===SI)return;grid[r][c]=SI;render();}
-function eraseCell(c,r){if(!inB(c,r))return;if(grid[r][c]===-1)return;grid[r][c]=-1;render();}
-function pickCell(c,r){if(!inB(c,r))return;var ci=grid[r][c];if(ci>=0){SI=ci;updPal();}}
-function floodFill(c,r,ni){
-  if(!inB(c,r))return;var oi=grid[r][c];if(oi===ni)return;
-  var stack=[[c,r]];
-  while(stack.length){var p=stack.pop();var pc=p[0],pr=p[1];if(!inB(pc,pr)||grid[pr][pc]!==oi)continue;grid[pr][pc]=ni;stack.push([pc+1,pr],[pc-1,pr],[pc,pr+1],[pc,pr-1]);}
-}
-function drawLine(x0,y0,x1,y1,ci){
-  var dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,err=dx-dy;
-  while(true){if(grid[y0])grid[y0][x0]=ci;if(x0===x1&&y0===y1)break;var e2=2*err;if(e2>-dy){err-=dy;x0+=sx;}if(e2<dx){err+=dx;y0+=sy;}}
-}
-
-// ── PALETTE ───────────────────────────────────────────────────────────────────
-function updPal(){
-  // legacy pgrid (hidden, used by export functions)
-  var pg=document.getElementById('pgrid');if(pg){pg.innerHTML='';
-    palette.forEach(function(h,i){var d=document.createElement('div');d.className='sw'+(i===SI?' sel':'');d.style.background=h;pg.appendChild(d);});
-  }
-  document.getElementById('pcnt').textContent=palette.length;
-  updColorPanel();
-}
-function updColorPanel(){
-  var cnt=new Array(palette.length).fill(0);
-  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]>=0)cnt[grid[r][c]]++;
-  var panel=document.getElementById('color-panel');panel.innerHTML='';
-  palette.forEach(function(h,i){
-    var dmc=nDMC(h);
-    var row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:5px;padding:4px 3px;border-radius:5px;cursor:pointer;transition:background .1s;'+(i===SI?'background:rgba(90,122,90,.12)':'');
-    row.onmouseenter=function(){if(i!==SI)this.style.background='rgba(0,0,0,.04)';};
-    row.onmouseleave=function(){this.style.background=i===SI?'rgba(90,122,90,.12)':'';};
-
-    // Color swatch (click = select)
-    var sw=document.createElement('div');
-    sw.style.cssText='width:20px;height:20px;border-radius:4px;flex-shrink:0;border:2px solid '+(i===SI?'#3d5c3d':'rgba(0,0,0,.15)')+';background:'+h+';cursor:pointer;';
-    sw.title='Click to paint with this color';
-    sw.onclick=function(e){e.stopPropagation();SI=i;updColorPanel();};
-
-    // DMC info
-    var info=document.createElement('div');info.style.cssText='flex:1;min-width:0;';
-    info.innerHTML='<div style="font-size:11px;font-weight:500;color:#2a1f14;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">DMC '+dmc.num+'</div>'+
-      '<div style="font-size:9px;color:#8a7a6a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+dmc.name+'</div>';
-
-    // Stitch count
-    var ct=document.createElement('div');ct.style.cssText='font-size:10px;color:#8a7a6a;flex-shrink:0;min-width:28px;text-align:right;';
-    ct.textContent=cnt[i]||0;
-
-    // Edit button (pencil)
-    var edit=document.createElement('button');
-    edit.textContent='✎';edit.title='Change this color';
-    edit.style.cssText='border:none;background:none;cursor:pointer;font-size:13px;color:#8a7a6a;padding:2px 3px;border-radius:3px;flex-shrink:0;';
-    edit.onmouseenter=function(){this.style.color='#3d5c3d';this.style.background='rgba(90,122,90,.12)';};
-    edit.onmouseleave=function(){this.style.color='#8a7a6a';this.style.background='none';};
-    edit.onclick=function(e){e.stopPropagation();openCP(i,e.clientX,e.clientY);};
-
-    // Delete button (trash = erase all pixels of this color)
-    var del=document.createElement('button');
-    del.textContent='✕';del.title='Erase all stitches of this color';
-    del.style.cssText='border:none;background:none;cursor:pointer;font-size:11px;color:#8a7a6a;padding:2px 3px;border-radius:3px;flex-shrink:0;';
-    del.onmouseenter=function(){this.style.color='#c0392b';this.style.background='rgba(192,57,43,.1)';};
-    del.onmouseleave=function(){this.style.color='#8a7a6a';this.style.background='none';};
-    del.onclick=function(e){e.stopPropagation();eraseColorAll(i);};
-
-    row.appendChild(sw);row.appendChild(info);row.appendChild(ct);row.appendChild(edit);row.appendChild(del);
-    row.onclick=function(){SI=i;updColorPanel();};
-    panel.appendChild(row);
-  });
-}
-function updSt(){
-  var ct=parseInt(document.getElementById('fab').value);
-  var wCm=((COLS/ct)*2.54).toFixed(1),hCm=((ROWS/ct)*2.54).toFixed(1);
-  var wIn=(COLS/ct).toFixed(1),hIn=(ROWS/ct).toFixed(1);
-  document.getElementById('fcm').textContent=wIn+'" × '+hIn+'" ('+wCm+' × '+hCm+' cm)';
-  document.getElementById('sts').textContent=COLS+' × '+ROWS;
-  if(hasPattern){var cnt=0;for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)cnt++;document.getElementById('stc').textContent=cnt.toLocaleString();}
-}
-function updDMC(){updColorPanel();
-
-  var dl=document.getElementById('dlist');dl.innerHTML='';
-  var sorted=getDMCSorted();
-  if(!sorted.length){dl.innerHTML='<div style="color:var(--muted);font-size:11px">No stitches yet</div>';return;}
-  sorted.forEach(function(x){
-    var dmc=nDMC(x.hex);
-    var div=document.createElement('div');div.className='di';
-    div.innerHTML='<div class="dd" style="background:'+dmc.hex+'"></div><div class="dn">DMC '+dmc.num+'</div><div class="dna">'+dmc.name+'</div><div class="dc">'+x.count+'</div>';
-    dl.appendChild(div);
-  });
-}
-function getDMCSorted(){
-  var cnt=new Array(palette.length).fill(0);
-  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]>=0)cnt[grid[r][c]]++;
-  return palette.map(function(h,i){return{hex:h,count:cnt[i],idx:i};}).filter(function(x){return x.count>0;}).sort(function(a,b){return b.count-a.count;});
-}
-// ── DMC PICKER (replaces native color picker for Add Color) ──────────────────
-var dmcPickerTgt=-1;
-var dmcPickerSelected=null;
-
-function buildDmcList(filter){
-  var list=document.getElementById('dmc-list');
-  list.innerHTML='';
-  var q=(filter||'').toLowerCase().trim();
-  var shown=0;
-  DMC.forEach(function(e,idx){
-    var num=String(e[0]).toLowerCase();
-    var name=e[1].toLowerCase();
-    if(q&&num.indexOf(q)<0&&name.indexOf(q)<0) return;
-    if(shown>120) return; // performance cap
-    shown++;
-    var item=document.createElement('div');
-    item.className='dmc-item';
-    var hex=r2h(e[2],e[3],e[4]);
-    if(dmcPickerSelected&&dmcPickerSelected===hex) item.classList.add('selected');
-    item.innerHTML='<div class="dmc-swatch" style="background:'+hex+'"></div>'
-      +'<div class="dmc-info"><div class="dmc-num">DMC '+e[0]+'</div><div class="dmc-name">'+e[1]+'</div></div>';
-    item.addEventListener('click',function(){
-      dmcPickerSelected=hex;
-      document.querySelectorAll('.dmc-item').forEach(function(i){i.classList.remove('selected');});
-      item.classList.add('selected');
-    });
-    list.appendChild(item);
-  });
-}
-
-function dmcSearchFilter(){
-  buildDmcList(document.getElementById('dmc-search').value);
-}
-
-function openDmcPicker(palIdx){
-  dmcPickerTgt=palIdx;
-  dmcPickerSelected=palette[palIdx]||null;
-  document.getElementById('dmc-search').value='';
-  buildDmcList('');
-  // Scroll to currently selected color
-  document.getElementById('dmc-picker-modal').classList.add('show');
-  // Scroll selected into view
-  setTimeout(function(){
-    var sel=document.querySelector('#dmc-list .dmc-item.selected');
-    if(sel) sel.scrollIntoView({block:'center'});
-  },30);
-}
-
-function dmcPickerOK(){
-  if(dmcPickerSelected&&dmcPickerTgt>=0){
-    palette[dmcPickerTgt]=dmcPickerSelected;
-    updPal();updDMC();render();
-  }
-  document.getElementById('dmc-picker-modal').classList.remove('show');
-}
-
-function dmcPickerClose(){
-  // If adding new color and cancelled, remove the placeholder
-  if(dmcPickerTgt>=0&&palette[dmcPickerTgt]==='#888888'&&!dmcPickerSelected){
-    palette.splice(dmcPickerTgt,1);
-    updPal();updDMC();
-  }
-  document.getElementById('dmc-picker-modal').classList.remove('show');
-}
-
-// Close on backdrop click
-document.getElementById('dmc-picker-modal').addEventListener('click',function(e){
-  if(e.target===this) dmcPickerClose();
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  var m={m:'move',p:'paint',e:'erase',f:'fill',k:'pick'};
+  if(m[e.key.toLowerCase()]){var b=document.getElementById('t-'+m[e.key.toLowerCase()]);if(b)setTool(m[e.key.toLowerCase()],b);}
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
 });
 
-function addCol(){
-  palette.push('#888888');
-  SI=palette.length-1;
-  updPal();updDMC();
-  openDmcPicker(SI);
+// ═══════════════════════════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════════════════════════
+function pushH(l){hist.push(grid.map(function(r){return r.slice();}));hlab.push(l);if(hist.length>30){hist.shift();hlab.shift();}}
+function undo(){if(!hist.length)return;grid=hist.pop();hlab.pop();render();updDMC();}
+function clearCanvas(){pushH('Clear');grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});render();updDMC();}
+
+// ═══════════════════════════════════════════════════════════════════
+// PALETTE
+// ═══════════════════════════════════════════════════════════════════
+function updPal(){
+  var el=document.getElementById('pgrid');
+  el.innerHTML='';
+  palette.forEach(function(h,i){
+    var s=document.createElement('div');
+    s.className='sw'+(i===SI?' sel':'');
+    s.style.background=h;
+    s.title=h;
+    s.onclick=function(){SI=i;updPal();};
+    s.ondblclick=function(e){e.stopPropagation();cpOpen(i,e);};
+    el.appendChild(s);
+  });
+  document.getElementById('pcnt'||'');
 }
-function eraseColorAll(ci){
-  if(!confirm('Erase all stitches of this color?'))return;
-  pushHistSnap();
-  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]===ci)grid[r][c]=-1;
-  render();updDMC();updColorPanel();pushHist('Erased color '+ci);
+function addCol(){
+  palette.push('#888888');dmcCache={};
+  SI=palette.length-1;updPal();cpOpen(SI,null);
 }
 function clearUnused(){
-  var used=new Set();for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r]&&grid[r][c]>=0)used.add(grid[r][c]);
-  var map={},newPal=[];palette.forEach(function(h,i){if(used.has(i)){map[i]=newPal.length;newPal.push(h);}});
-  for(var r2=0;r2<ROWS;r2++)for(var c2=0;c2<COLS;c2++){if(grid[r2]&&grid[r2][c2]>=0)grid[r2][c2]=map[grid[r2][c2]]!==undefined?map[grid[r2][c2]]:-1;}
-  palette=newPal;SI=0;updPal();updDMC();
-}
-function clearCanvas(){if(!confirm('Clear all stitches?'))return;pushHistSnap();for(var r=0;r<ROWS;r++)grid[r]=new Array(COLS).fill(-1);render();updDMC();}
-
-// ── HISTORY ───────────────────────────────────────────────────────────────────
-function pushHistSnap(){hist.push(grid.map(function(r){return r.slice();}));if(hist.length>30)hist.shift();}
-function pushHist(label){
-  hlab.unshift(label||'Edit');if(hlab.length>10)hlab.pop();
-  var hl=document.getElementById('hl');hl.innerHTML='';
-  hlab.forEach(function(l){var d=document.createElement('div');d.textContent=l;hl.appendChild(d);});
-}
-function undo(){if(!hist.length)return;grid=hist.pop();render();updDMC();pushHist('Undo');}
-
-// ── COLOR PICKER (now uses DMC picker modal) ──────────────────────────────────
-function openCP(idx,x,y){ openDmcPicker(idx); }
-function cpChg(){}
-function cpHex(){}
-function cpOK(){ dmcPickerOK(); }
-function cpX(){ dmcPickerClose(); }
-
-
-// ── EXPORT FUNCTIONS (reused from original) ─────────────────────────────────
-function xPNG(){
-  var sz=CELL,W=COLS*sz,H=ROWS*sz;
-  var ec=document.createElement('canvas');ec.width=W;ec.height=H;
-  var ex=ec.getContext('2d');ex.fillStyle='#f0ece3';ex.fillRect(0,0,W,H);
-  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){var ci=grid[r][c];if(ci>=0&&ci<palette.length){ex.fillStyle=palette[ci];ex.fillRect(c*sz,r*sz,sz,sz);}}
-  var a=document.createElement('a');a.download='cross-stitch.png';a.href=ec.toDataURL();a.click();
-}
-function xChart(){
-  var sz=14,W=COLS*sz+50,H=ROWS*sz+60;
-  var ec=document.createElement('canvas');ec.width=W;ec.height=H;
-  var ex=ec.getContext('2d');ex.fillStyle='#fff';ex.fillRect(0,0,W,H);
-  ex.font='bold 12px serif';ex.fillStyle='#333';ex.fillText('Cross Stitch Pattern - '+COLS+'x'+ROWS,10,16);
-  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
-    var ci=grid[r][c];var px=25+c*sz,py=28+r*sz;
-    if(ci>=0&&ci<palette.length){
-      ex.fillStyle=palette[ci];ex.fillRect(px,py,sz,sz);
-      var rgb=h2r(palette[ci]);var lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
-      ex.fillStyle=lum>140?'#000':'#fff';ex.font=(sz-3)+'px monospace';ex.textAlign='center';ex.textBaseline='middle';
-      ex.fillText(SYM[ci%SYM.length],px+sz/2,py+sz/2);
-    }
-    ex.strokeStyle='rgba(0,0,0,.1)';ex.lineWidth=.4;ex.strokeRect(px,py,sz,sz);
-  }
-  var a=document.createElement('a');a.download='cross-stitch-chart.png';a.href=ec.toDataURL();a.click();
-}
-// ── LOAD jsPDF FROM CDN (lazy) ────────────────────────────────────────────────
-function loadJsPDF(cb){
-  if(window.jspdf&&window.jspdf.jsPDF){cb();return;}
-  var s=document.createElement('script');
-  s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-  s.onload=function(){if(window.jspdf&&window.jspdf.jsPDF){cb();}else{alert('Could not load PDF library. Please check your internet connection.');}};
-  s.onerror=function(){alert('Failed to load PDF library (jsPDF). Please check your internet connection and try again.');};
-  document.head.appendChild(s);
+  var used=new Set();
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)used.add(grid[r][c]);
+  var newP=[],map={};
+  palette.forEach(function(h,i){if(used.has(i)){map[i]=newP.length;newP.push(h);}});
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)grid[r][c]=grid[r][c]>=0?(map[grid[r][c]]!==undefined?map[grid[r][c]]:-1):-1;
+  palette=newP;SI=Math.min(SI,palette.length-1);if(SI<0)SI=0;
+  dmcCache={};updPal();updDMC();render();
 }
 
-function xPDF(mode,size){
-  if(!palette.length||!grid.flat().some(function(v){return v>=0;}))return alert('Please convert an image first');
-  loadJsPDF(function(){
-    var jsPDF=window.jspdf.jsPDF;
-    var A4W=210,A4H=297,MARGIN=10;
-    var ct=parseInt(document.getElementById('fab').value);
-    var wIn=(COLS/ct).toFixed(2),hIn=(ROWS/ct).toFixed(2);
-    var wCm=(COLS/ct*2.54).toFixed(1),hCm=(ROWS/ct*2.54).toFixed(1);
-    var modeTxt=mode==='color'?'Color':'Black & White';
-    var sizeTxt={'S':'Small (1 page)','M':'Medium (2 pages)','L':'Large (4 pages)'}[size];
-    var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-
-    // Count colors
-    var cnt=new Array(palette.length).fill(0);
-    for(var ri=0;ri<ROWS;ri++)for(var ci2=0;ci2<COLS;ci2++)if(grid[ri][ci2]>=0)cnt[grid[ri][ci2]]++;
-    var sorted=palette.map(function(h,i){return{h:h,i:i,n:cnt[i]};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
-
-    // ── PAGE 1: Cover ────────────────────────────────────────────────────────
-    doc.setFillColor(45,106,79);doc.rect(0,0,A4W,18,'F');
-    doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont(undefined,'bold');
-    doc.text('Cross Stitch Pattern',MARGIN,12);
-    doc.setFontSize(9);doc.setFont(undefined,'normal');
-    doc.text(modeTxt+' | '+sizeTxt,A4W-MARGIN,12,{align:'right'});
-    doc.setTextColor(60,60,60);doc.setFontSize(9);
-    doc.text('Pattern: '+COLS+' x '+ROWS+' stitches  |  Colors: '+palette.length,MARGIN,26);
-    doc.text('Finished: '+wIn+'" x '+hIn+'"  ('+wCm+' x '+hCm+' cm)',MARGIN,33);
-    doc.text('Fabric: '+document.getElementById('fab').options[document.getElementById('fab').selectedIndex].text,MARGIN,40);
-    // Preview image
-    var prevC=document.createElement('canvas');
-    var sz2=Math.min(3,150/Math.max(COLS,ROWS));
-    prevC.width=Math.round(COLS*sz2);prevC.height=Math.round(ROWS*sz2);
-    var px2=prevC.getContext('2d');
-    px2.fillStyle='#f8f5f0';px2.fillRect(0,0,prevC.width,prevC.height);
-    for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){var ci=grid[r][c];if(ci>=0&&ci<palette.length){px2.fillStyle=palette[ci];px2.fillRect(Math.round(c*sz2),Math.round(r*sz2),Math.ceil(sz2),Math.ceil(sz2));}}
-    var prevData=prevC.toDataURL('image/jpeg',0.9);
-    var maxW=A4W-MARGIN*2,maxH=A4H-55;
-    var sc=Math.min(maxW/prevC.width,maxH/prevC.height);
-    var pw=prevC.width*sc,ph=prevC.height*sc;
-    doc.addImage(prevData,'JPEG',(A4W-pw)/2,50,pw,ph);
-
-    // ── CHART PAGES (vector drawn) ───────────────────────────────────────────
-    var blocksX,blocksY;
-    if(size==='S'){blocksX=1;blocksY=1;}
-    else if(size==='M'){blocksX=2;blocksY=1;}
-    else{blocksX=2;blocksY=2;}
-
-    var bCols=Math.ceil(COLS/blocksX);
-    var bRows=Math.ceil(ROWS/blocksY);
-    var blockNum=0;
-
-    for(var by=0;by<blocksY;by++){
-      for(var bx=0;bx<blocksX;bx++){
-        blockNum++;
-        doc.addPage();
-        var x0=bx*bCols, y0=by*bRows;
-        var x1=Math.min(x0+bCols,COLS), y1=Math.min(y0+bRows,ROWS);
-        var bW=x1-x0, bH=y1-y0;
-
-        // Calculate cell size to fill page
-        var rulerL=10,rulerT=8;
-        var availW=A4W-MARGIN-rulerL-2;
-        var availH=A4H-MARGIN-rulerT-8;
-        var cell=Math.min(availW/bW, availH/bH);
-        cell=Math.max(0.8,Math.min(cell,5));
-        var chartX=MARGIN+rulerL;
-        var chartY=MARGIN+rulerT;
-        var chartW=bW*cell, chartH=bH*cell;
-
-        // Header
-        doc.setFillColor(45,106,79);doc.rect(0,0,A4W,8,'F');
-        doc.setTextColor(255,255,255);doc.setFontSize(8);doc.setFont(undefined,'bold');
-        doc.text('Chart Block '+blockNum+' / '+(blocksX*blocksY),MARGIN,5.5);
-        doc.setFont(undefined,'normal');doc.setFontSize(7);
-        doc.text('X:'+(x0+1)+'-'+x1+'  Y:'+(y0+1)+'-'+y1,A4W-MARGIN,5.5,{align:'right'});
-
-        // White chart bg
-        doc.setFillColor(255,255,255);doc.rect(chartX,chartY,chartW,chartH,'F');
-
-        // ── Draw each cell with vector symbols ──────────────────────────────
-        for(var r=0;r<bH;r++){
-          for(var c=0;c<bW;c++){
-            var gi=grid[y0+r][x0+c];
-            var cx=chartX+c*cell, cy=chartY+r*cell;
-
-            if(gi>=0&&gi<palette.length){
-              if(mode==='color'){
-                // Light tint background
-                var rgb=h2r(palette[gi]);
-                if(rgb){
-                  doc.setFillColor(
-                    Math.round(rgb[0]*0.3+255*0.7),
-                    Math.round(rgb[1]*0.3+255*0.7),
-                    Math.round(rgb[2]*0.3+255*0.7)
-                  );
-                  doc.rect(cx,cy,cell,cell,'F');
-                }
-              }
-              // Draw symbol as vector using jsPDF text
-              doc.setTextColor(0,0,0);
-              doc.setFontSize(cell*2.2);
-              doc.setFont(undefined,'bold');
-              doc.text(SYM[gi%SYM.length],cx+cell*0.5,cy+cell*0.78,{align:'center'});
-            }
-
-            // Cell border
-            doc.setDrawColor(180,180,180);doc.setLineWidth(0.03);
-            doc.rect(cx,cy,cell,cell);
-          }
-        }
-
-        // Bold every-10 lines
-        doc.setDrawColor(100,100,100);doc.setLineWidth(0.2);
-        for(var r2=0;r2<=bH;r2+=10){
-          doc.line(chartX,chartY+r2*cell,chartX+chartW,chartY+r2*cell);
-        }
-        for(var c2=0;c2<=bW;c2+=10){
-          doc.line(chartX+c2*cell,chartY,chartX+c2*cell,chartY+chartH);
-        }
-        doc.setDrawColor(40,40,40);doc.setLineWidth(0.4);
-        doc.rect(chartX,chartY,chartW,chartH);
-
-        // Rulers
-        doc.setTextColor(60,60,60);doc.setFontSize(4);doc.setFont(undefined,'normal');
-        for(var c3=x0;c3<x1;c3+=10){
-          if(c3===0)continue;
-          doc.text(String(c3),chartX+(c3-x0)*cell,chartY-2,{align:'center'});
-        }
-        for(var r3=y0;r3<y1;r3+=10){
-          if(r3===0)continue;
-          doc.text(String(r3),chartX-2,chartY+(r3-y0)*cell+cell*0.3,{align:'right'});
-        }
-
-        // Footer
-        doc.setFontSize(5.5);doc.setTextColor(100,100,100);
-        doc.text(COLS+' x '+ROWS+'  |  '+wCm+' x '+hCm+' cm  |  '+palette.length+' colors',
-          A4W/2,chartY+chartH+4,{align:'center'});
-        doc.text(blockNum+1+' / '+(blocksX*blocksY+2),A4W-MARGIN,A4H-2,{align:'right'});
-      }
-    }
-
-    // ── COLOR LEGEND PAGE ────────────────────────────────────────────────────
-    doc.addPage();
-    doc.setFillColor(45,106,79);doc.rect(0,0,A4W,14,'F');
-    doc.setTextColor(255,255,255);doc.setFontSize(12);doc.setFont(undefined,'bold');
-    doc.text('Color Legend',MARGIN,9);
-    doc.setFontSize(8);doc.setFont(undefined,'normal');
-    doc.text('Finished: '+wIn+'" x '+hIn+'"  ('+wCm+' x '+hCm+' cm)',A4W-MARGIN,9,{align:'right'});
-
-    var legY=22,rowH=7;
-    var total=sorted.reduce(function(s,x){return s+x.n;},0);
-    var cols2=[MARGIN,MARGIN+8,MARGIN+18,MARGIN+28,MARGIN+80,MARGIN+128,MARGIN+158];
-
-    // Header row
-    doc.setFillColor(240,240,240);doc.rect(MARGIN,legY-4,A4W-MARGIN*2,rowH,'F');
-    doc.setTextColor(80,80,80);doc.setFontSize(7);doc.setFont(undefined,'bold');
-    ['N','Sym','','DMC','Name','Stitches','%'].forEach(function(h,i){doc.text(h,cols2[i],legY);});
-    legY+=rowH-1;
-
-    sorted.forEach(function(x,idx){
-      if(legY>A4H-12){doc.addPage();legY=15;}
-      if(idx%2===0){doc.setFillColor(250,249,247);doc.rect(MARGIN,legY-4,A4W-MARGIN*2,rowH,'F');}
-      var dmc=nDMC(x.h);
-      var rgb=h2r(x.h)||[200,200,200];
-
-      // Color swatch
-      doc.setFillColor(rgb[0],rgb[1],rgb[2]);
-      doc.rect(cols2[2],legY-3.5,5,5,'F');
-      doc.setDrawColor(160,160,160);doc.setLineWidth(0.2);doc.rect(cols2[2],legY-3.5,5,5);
-
-      // Symbol in box
-      doc.setFillColor(245,245,245);doc.rect(cols2[1]-1,legY-3.5,6,5,'F');
-      doc.setDrawColor(180,180,180);doc.setLineWidth(0.2);doc.rect(cols2[1]-1,legY-3.5,6,5);
-      doc.setTextColor(0,0,0);doc.setFontSize(6);doc.setFont(undefined,'bold');
-      doc.text(SYM[x.i%SYM.length],cols2[1]+2,legY,{align:'center'});
-
-      doc.setTextColor(30,30,30);doc.setFont(undefined,'normal');doc.setFontSize(7);
-      doc.text(String(idx+1),cols2[0],legY);
-      doc.text('DMC '+String(dmc.num),cols2[3],legY);
-      doc.setTextColor(60,60,60);
-      doc.text(dmc.name.substring(0,30),cols2[4],legY);
-      doc.setTextColor(80,80,80);doc.textAlign='right';
-      doc.text(x.n.toLocaleString(),cols2[5]+40,legY);
-      doc.text((x.n/total*100).toFixed(1)+'%',cols2[6]+22,legY);
-      doc.setDrawColor(225,225,225);doc.setLineWidth(0.2);
-      doc.line(MARGIN,legY+2,A4W-MARGIN,legY+2);
-      legY+=rowH-1;
-    });
-
-    var fname='cross-stitch-'+mode+'-'+size+'.pdf';
-    doc.save(fname);
-  });
+// ═══════════════════════════════════════════════════════════════════
+// COLOR PICKER
+// ═══════════════════════════════════════════════════════════════════
+var cpIdx=-1;
+function cpOpen(i,e){
+  cpIdx=i;
+  var pop=document.getElementById('cpick');
+  pop.style.display='block';
+  document.getElementById('cp-col').value=palette[i];
+  document.getElementById('cp-hex').value=palette[i];
+  var d=nearDMC(palette[i]);
+  document.getElementById('cp-dmc').textContent='DMC '+d.num+' – '+d.name;
+  if(e){pop.style.left=(e.clientX+10)+'px';pop.style.top=(e.clientY-60)+'px';}
+  else{pop.style.left='50%';pop.style.top='50%';pop.style.transform='translate(-50%,-50%)';}
 }
-function xFlossPNG(){
-  if(!palette.length)return alert('Convert an image first');
+function cpInput(){
+  var v=document.getElementById('cp-col').value;
+  document.getElementById('cp-hex').value=v;
+  var d=nearDMC(v);
+  document.getElementById('cp-dmc').textContent='DMC '+d.num+' – '+d.name;
+}
+function cpHex(){
+  var v=document.getElementById('cp-hex').value.trim();
+  if(!/^#[0-9a-fA-F]{6}$/.test(v))return;
+  document.getElementById('cp-col').value=v;
+  var d=nearDMC(v);
+  document.getElementById('cp-dmc').textContent='DMC '+d.num+' – '+d.name;
+}
+function cpApply(){
+  if(cpIdx<0||cpIdx>=palette.length)return;
+  palette[cpIdx]=document.getElementById('cp-hex').value||document.getElementById('cp-col').value;
+  dmcCache={};cpClose();updPal();updDMC();render();
+}
+function cpClose(){document.getElementById('cpick').style.display='none';document.getElementById('cp-col').style.transform='';}
+document.addEventListener('mousedown',function(e){if(!document.getElementById('cpick').contains(e.target))cpClose();});
+
+// ═══════════════════════════════════════════════════════════════════
+// DMC LIST
+// ═══════════════════════════════════════════════════════════════════
+function updDMC(){
+  dmcCache={};
   var cnt=new Array(palette.length).fill(0);
   for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)cnt[grid[r][c]]++;
-  var sorted=palette.map(function(h,i){return{h:h,i:i,n:cnt[i]};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
-  var total=sorted.reduce(function(s,x){return s+x.n;},0);
-  var rH=28,hH=65,W=600,H=hH+sorted.length*rH+20;
+  var used=palette.map(function(h,i){return{h:h,n:cnt[i],i:i};})
+    .filter(function(x){return x.n>0;})
+    .sort(function(a,b){return b.n-a.n;});
+  var el=document.getElementById('dlist');
+  if(!used.length){el.innerHTML='<div style="color:var(--muted);font-size:11px;padding:4px">ยังไม่มีสี</div>';return;}
+  el.innerHTML='';
+  used.forEach(function(x,idx){
+    var d=nearDMC(x.h);
+    var row=document.createElement('div');
+    row.className='di';
+    row.innerHTML='<div class="dd" style="background:'+d.hex+'"></div>'
+      +'<div><div class="dn">DMC '+d.num+'</div><div class="dna">'+d.name.substring(0,20)+'</div></div>'
+      +'<div class="dc">'+x.n+'</div>';
+    el.appendChild(row);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+function onW(){
+  var v=+document.getElementById('sW').value;
+  document.getElementById('vW').textContent=v;
+  if(document.getElementById('lock').checked){
+    document.getElementById('sH').value=v;
+    document.getElementById('vH').textContent=v;
+  }
+}
+function onH(){
+  var v=+document.getElementById('sH').value;
+  document.getElementById('vH').textContent=v;
+  if(document.getElementById('lock').checked){
+    document.getElementById('sW').value=v;
+    document.getElementById('vW').textContent=v;
+  }
+}
+function onNC(){document.getElementById('vNC').textContent=document.getElementById('sNC').value;}
+function setPreset(w,h){
+  document.getElementById('sW').value=w;document.getElementById('vW').textContent=w;
+  document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;
+}
+function matchRatio(){
+  if(!refSrc)return alert('อัปโหลดภาพก่อนนะคะ');
+  var w=+document.getElementById('sW').value;
+  var h=Math.round(w*refSrc.naturalHeight/refSrc.naturalWidth);
+  h=Math.max(10,Math.min(120,h));
+  document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;
+  document.getElementById('lock').checked=false;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════════════════════════════════
+function dzOver(e){e.preventDefault();document.getElementById('dropzone').classList.add('drag');}
+function dzLeave(){document.getElementById('dropzone').classList.remove('drag');}
+function dzDrop(e){e.preventDefault();dzLeave();if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);}
+function onFile(inp){if(inp.files[0])loadFile(inp.files[0]);}
+function loadFile(f){
+  if(!f.type.startsWith('image/'))return;
+  var rd=new FileReader();
+  rd.onload=function(ev){
+    refSrc=new Image();
+    refSrc.onload=function(){
+      document.getElementById('refthumb').src=ev.target.result;
+      document.getElementById('refthumb').style.display='block';
+      document.getElementById('preview-img').src=ev.target.result;
+      document.getElementById('preview-img').style.display='block';
+      document.getElementById('prev-info').innerHTML='<b>'+f.name.substring(0,24)+'</b>'
+        +refSrc.naturalWidth+'×'+refSrc.naturalHeight+'px';
+      var badge=document.getElementById('status-badge');
+      badge.style.display='block';badge.className='';
+      badge.textContent='✓ โหลดภาพสำเร็จ — กด "แปลงเป็น Pattern"';
+    };
+    refSrc.src=ev.target.result;
+  };
+  rd.readAsDataURL(f);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ★ MAIN CONVERT FUNCTION ★
+// ═══════════════════════════════════════════════════════════════════
+function doConvert(){
+  if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
+  
+  // Show progress
+  var pw=document.getElementById('progress-wrap');
+  var pf=document.getElementById('progress-fill');
+  var pt=document.getElementById('progress-text');
+  pw.style.display='block';pf.style.width='0%';pt.textContent='กำลังเตรียมภาพ...';
+
+  var badge=document.getElementById('status-badge');
+  badge.style.display='block';badge.className='processing';
+  badge.textContent='⏳ กำลังประมวลผล...';
+
+  var newCOLS=+document.getElementById('sW').value;
+  var newROWS=+document.getElementById('sH').value;
+  var maxNC=+document.getElementById('sNC').value;
+  var chkBg=document.getElementById('chkBg').checked;
+  var chkOutline=document.getElementById('chkOutline').checked;
+  var qmode=document.getElementById('qmode').value;
+
+  setTimeout(function(){
+    try{
+      COLS=newCOLS; ROWS=newROWS;
+      grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
+      palette=[];SI=0;hist=[];hlab=[];dmcCache={};
+
+      pf.style.width='15%';pt.textContent='กำลังลดขนาดภาพ...';
+
+      // ── STEP 1: Render image at grid size ──
+      refC.width=COLS; refC.height=ROWS;
+      refX.clearRect(0,0,COLS,ROWS);
+      refX.fillStyle='#ffffff';
+      refX.fillRect(0,0,COLS,ROWS);
+      refX.drawImage(refSrc,0,0,COLS,ROWS);
+      var pxW=refX.getImageData(0,0,COLS,ROWS).data;
+      refX.fillStyle='#000000';
+      refX.fillRect(0,0,COLS,ROWS);
+      refX.drawImage(refSrc,0,0,COLS,ROWS);
+      var pxB=refX.getImageData(0,0,COLS,ROWS).data;
+
+      pf.style.width='25%';pt.textContent='ตรวจจับความโปร่งใส...';
+
+      // ── STEP 2: Alpha detection ──
+      var alphaCnt=0;
+      for(var i=0;i<ROWS*COLS;i++){
+        var idx=i*4;
+        if(pxW[idx]-pxB[idx]>160&&pxW[idx+1]-pxB[idx+1]>160&&pxW[idx+2]-pxB[idx+2]>160)alphaCnt++;
+      }
+      var hasAlpha=(alphaCnt>ROWS*COLS*0.005);
+
+      // ── STEP 3: Build pixel grid ──
+      var pg=[], bgMask=[], fgPixels=[];
+      for(var r=0;r<ROWS;r++){
+        pg.push([]); bgMask.push([]);
+        for(var c=0;c<COLS;c++){
+          var idx2=(r*COLS+c)*4;
+          var rW=pxW[idx2],gW=pxW[idx2+1],bW=pxW[idx2+2];
+          var rB=pxB[idx2],gB=pxB[idx2+1],bB=pxB[idx2+2];
+          var isBg=false;
+
+          if(hasAlpha){
+            var avgDiff=((rW-rB)+(gW-gB)+(bW-bB))/3;
+            var alphaEst=Math.max(0,Math.min(1,1-avgDiff/255));
+            if(alphaEst<0.25){isBg=true;}
+            else if(alphaEst<0.8){
+              var a=alphaEst;
+              rW=Math.round(Math.max(0,Math.min(255,(rW-(1-a)*255)/a)));
+              gW=Math.round(Math.max(0,Math.min(255,(gW-(1-a)*255)/a)));
+              bW=Math.round(Math.max(0,Math.min(255,(bW-(1-a)*255)/a)));
+            }
+          } else if(chkBg){
+            var lum=0.299*rW+0.587*gW+0.114*bW;
+            if(lum>235&&Math.max(rW,gW,bW)-Math.min(rW,gW,bW)<25)isBg=true;
+          }
+
+          pg[r].push([rW,gW,bW]);
+          bgMask[r].push(isBg);
+          if(!isBg)fgPixels.push([rW,gW,bW]);
+        }
+      }
+
+      // Background flood fill for non-alpha images
+      if(!hasAlpha&&chkBg){
+        var visited=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
+        var newBg=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
+        var stk=[];
+        for(var ei=0;ei<ROWS;ei++){
+          [[ei,0],[ei,COLS-1]].forEach(function(pt){if(bgMask[pt[0]][pt[1]]){visited[pt[0]][pt[1]]=true;stk.push(pt);}});
+        }
+        for(var ej=0;ej<COLS;ej++){
+          [[0,ej],[ROWS-1,ej]].forEach(function(pt){if(!visited[pt[0]][pt[1]]&&bgMask[pt[0]][pt[1]]){visited[pt[0]][pt[1]]=true;stk.push(pt);}});
+        }
+        while(stk.length){
+          var pos=stk.pop(),pr=pos[0],pc=pos[1];
+          if(pr<0||pr>=ROWS||pc<0||pc>=COLS||!bgMask[pr][pc]||newBg[pr][pc])continue;
+          newBg[pr][pc]=true;
+          [[pr-1,pc],[pr+1,pc],[pr,pc-1],[pr,pc+1]].forEach(function(n){
+            if(n[0]>=0&&n[0]<ROWS&&n[1]>=0&&n[1]<COLS&&!visited[n[0]][n[1]]&&bgMask[n[0]][n[1]]){
+              visited[n[0]][n[1]]=true;stk.push(n);
+            }
+          });
+        }
+        bgMask=newBg;
+        fgPixels=[];
+        for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(!bgMask[r][c])fgPixels.push(pg[r][c]);
+      }
+
+      pf.style.width='40%';pt.textContent='ตรวจจับเส้นขอบ...';
+
+      // ── STEP 4: Outline detection ──
+      var outlineMask=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
+      var outlineRGB=null;
+      if(chkOutline&&fgPixels.length>0){
+        var outlinePxs=[];
+        for(var r=1;r<ROWS-1;r++){
+          for(var c=1;c<COLS-1;c++){
+            if(bgMask[r][c])continue;
+            var px=pg[r][c];
+            var lum=0.299*px[0]+0.587*px[1]+0.114*px[2];
+            if(lum<45){
+              var neighbors4=[[r-1,c],[r+1,c],[r,c-1],[r,c+1],[r-1,c-1],[r-1,c+1],[r+1,c-1],[r+1,c+1]];
+              var brightNbr=0;
+              for(var n=0;n<neighbors4.length;n++){
+                var nr=neighbors4[n][0],nc=neighbors4[n][1];
+                if(nr<0||nr>=ROWS||nc<0||nc>=COLS||bgMask[nr][nc])continue;
+                var npx=pg[nr][nc];
+                var nlum=0.299*npx[0]+0.587*npx[1]+0.114*npx[2];
+                if(nlum-lum>80)brightNbr++;
+              }
+              var isWarm=px[0]>px[2]&&px[0]-px[2]>20;
+              if(brightNbr>=3&&!isWarm){outlineMask[r][c]=true;outlinePxs.push(px);}
+            }
+          }
+        }
+        if(outlinePxs.length>5){
+          var os=[0,0,0];
+          outlinePxs.forEach(function(p){os[0]+=p[0];os[1]+=p[1];os[2]+=p[2];});
+          outlineRGB=[Math.round(os[0]/outlinePxs.length),Math.round(os[1]/outlinePxs.length),Math.round(os[2]/outlinePxs.length)];
+        } else {
+          outlineRGB=null;
+          for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)outlineMask[r][c]=false;
+        }
+      }
+
+      pf.style.width='55%';pt.textContent='คำนวณ palette สี...';
+
+      // ── STEP 5: Color quantization ──
+      // Sample foreground pixels (exclude outline)
+      var samplePx=[];
+      for(var r=0;r<ROWS;r++)
+        for(var c=0;c<COLS;c++)
+          if(!bgMask[r][c]&&!outlineMask[r][c])
+            samplePx.push(pg[r][c]);
+
+      var palNc=outlineRGB?maxNC-1:maxNC;
+      palNc=Math.max(1,palNc);
+
+      var centers;
+      if(qmode==='kmeans'||qmode==='median'){
+        centers=kMeansQuantize(samplePx,palNc);
+      } else {
+        centers=octreeQuantize(samplePx,palNc);
+      }
+
+      // Build palette
+      palette=[];
+      if(outlineRGB)palette.push(r2h(outlineRGB[0],outlineRGB[1],outlineRGB[2]));
+      centers.forEach(function(c){palette.push(r2h(c[0],c[1],c[2]));});
+
+      pf.style.width='80%';pt.textContent='กำหนดสีให้ตาราง...';
+
+      // ── STEP 6: Map pixels to palette ──
+      for(var r=0;r<ROWS;r++){
+        for(var c=0;c<COLS;c++){
+          if(bgMask[r][c]){grid[r][c]=-1;continue;}
+          var px=pg[r][c];
+          if(outlineMask[r][c]){grid[r][c]=0;continue;}
+          var bestI=outlineRGB?1:0, bestD=1e18;
+          var start=outlineRGB?1:0;
+          for(var pi=start;pi<palette.length;pi++){
+            var prgb=h2r(palette[pi]);
+            if(!prgb)continue;
+            var d=colorDist(px[0],px[1],px[2],prgb[0],prgb[1],prgb[2]);
+            if(d<bestD){bestD=d;bestI=pi;}
+          }
+          grid[r][c]=bestI;
+        }
+      }
+
+      pf.style.width='95%';pt.textContent='เสร็จแล้ว!';
+
+      SI=0;
+      clearUnused();
+      updPal();updDMC();
+      fitZoom();
+
+      setTimeout(function(){
+        pw.style.display='none';
+        badge.className='';
+        badge.textContent='✦ แปลงสำเร็จ! '+palette.length+' สี | '+COLS+'×'+ROWS+' stitches';
+        updSt();
+      },300);
+
+    }catch(err){
+      pw.style.display='none';
+      badge.className='error';
+      badge.textContent='❌ Error: '+err.message;
+      console.error(err);
+    }
+  },50);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// K-MEANS COLOR QUANTIZATION
+// ═══════════════════════════════════════════════════════════════════
+function kMeansQuantize(pixels,k){
+  if(!pixels.length)return[[128,128,128]];
+  k=Math.min(k,pixels.length);
+
+  // Smart initialization: K-Means++ style
+  var centers=[];
+  // Pick first center randomly from a sample
+  var sample=pixels.length>2000?sampleArray(pixels,2000):pixels;
+  centers.push(sample[Math.floor(Math.random()*sample.length)].slice());
+
+  for(var ki=1;ki<k;ki++){
+    // Pick next center with probability proportional to distance squared
+    var dists=sample.map(function(px){
+      var md=1e18;
+      centers.forEach(function(c){
+        var d=colorDist(px[0],px[1],px[2],c[0],c[1],c[2]);
+        if(d<md)md=d;
+      });
+      return md;
+    });
+    var sum=dists.reduce(function(a,b){return a+b;},0);
+    if(sum===0){centers.push(sample[Math.floor(Math.random()*sample.length)].slice());continue;}
+    var r2=Math.random()*sum, acc=0;
+    for(var si=0;si<dists.length;si++){acc+=dists[si];if(acc>=r2){centers.push(sample[si].slice());break;}}
+    if(centers.length<=ki)centers.push(sample[sample.length-1].slice());
+  }
+
+  // Iterate K-Means (max 20 iter)
+  var workPx=pixels.length>3000?sampleArray(pixels,3000):pixels;
+  for(var iter=0;iter<20;iter++){
+    var sums=centers.map(function(){return[0,0,0,0];});
+    workPx.forEach(function(px){
+      var bi=0,bd=1e18;
+      centers.forEach(function(c,ci){
+        var d=colorDist(px[0],px[1],px[2],c[0],c[1],c[2]);
+        if(d<bd){bd=d;bi=ci;}
+      });
+      sums[bi][0]+=px[0];sums[bi][1]+=px[1];sums[bi][2]+=px[2];sums[bi][3]++;
+    });
+    var moved=false;
+    for(var ci=0;ci<centers.length;ci++){
+      if(sums[ci][3]>0){
+        var nr=Math.round(sums[ci][0]/sums[ci][3]);
+        var ng=Math.round(sums[ci][1]/sums[ci][3]);
+        var nb=Math.round(sums[ci][2]/sums[ci][3]);
+        if(nr!==centers[ci][0]||ng!==centers[ci][1]||nb!==centers[ci][2]){
+          centers[ci]=[nr,ng,nb];moved=true;
+        }
+      }
+    }
+    if(!moved)break;
+  }
+  // Remove empty clusters
+  return centers.filter(function(_,i){return true;});
+}
+
+// Octree quantize (faster for large k)
+function octreeQuantize(pixels,k){
+  if(!pixels.length)return[[128,128,128]];
+  // Simple median cut as fallback
+  return medianCut(pixels,k);
+}
+
+function medianCut(pixels,k){
+  if(!pixels.length)return[[128,128,128]];
+  var boxes=[pixels.slice()];
+  while(boxes.length<k){
+    // Find largest box by range
+    var bi=0,maxRange=0;
+    boxes.forEach(function(b,i){
+      if(!b.length)return;
+      var rng=channelRange(b);
+      if(rng>maxRange){maxRange=rng;bi=i;}
+    });
+    if(maxRange===0)break;
+    var box=boxes[bi];
+    var ch=largestChannel(box);
+    box.sort(function(a,b){return a[ch]-b[ch];});
+    var mid=Math.floor(box.length/2);
+    boxes.splice(bi,1,box.slice(0,mid),box.slice(mid));
+  }
+  return boxes.filter(function(b){return b.length;}).map(function(b){
+    var r=0,g=0,bl=0;
+    b.forEach(function(p){r+=p[0];g+=p[1];bl+=p[2];});
+    return[Math.round(r/b.length),Math.round(g/b.length),Math.round(bl/b.length)];
+  });
+}
+function channelRange(pixels){
+  var mn=[255,255,255],mx=[0,0,0];
+  pixels.forEach(function(p){for(var i=0;i<3;i++){if(p[i]<mn[i])mn[i]=p[i];if(p[i]>mx[i])mx[i]=p[i];}});
+  return Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]);
+}
+function largestChannel(pixels){
+  var mn=[255,255,255],mx=[0,0,0];
+  pixels.forEach(function(p){for(var i=0;i<3;i++){if(p[i]<mn[i])mn[i]=p[i];if(p[i]>mx[i])mx[i]=p[i];}});
+  var ranges=[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]];
+  return ranges.indexOf(Math.max.apply(null,ranges));
+}
+function sampleArray(arr,n){
+  if(arr.length<=n)return arr;
+  var result=[],step=arr.length/n;
+  for(var i=0;i<n;i++)result.push(arr[Math.floor(i*step)]);
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EXPORT FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════
+function xPNG(){
+  var sz=12, W=COLS*sz, H=ROWS*sz;
+  var ec=document.createElement('canvas');ec.width=W;ec.height=H;
+  var ex=ec.getContext('2d');
+  ex.fillStyle='#f5eedc';ex.fillRect(0,0,W,H);
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    var ci=grid[r][c];
+    if(ci>=0&&ci<palette.length){ex.fillStyle=palette[ci];ex.fillRect(c*sz,r*sz,sz,sz);}
+  }
+  // Grid lines every 10
+  ex.strokeStyle='rgba(100,80,40,.25)';ex.lineWidth=.5;
+  for(var r2=0;r2<=ROWS;r2++){ex.beginPath();ex.moveTo(0,r2*sz);ex.lineTo(W,r2*sz);ex.stroke();}
+  for(var c2=0;c2<=COLS;c2++){ex.beginPath();ex.moveTo(c2*sz,0);ex.lineTo(c2*sz,H);ex.stroke();}
+  ex.strokeStyle='rgba(80,60,20,.5)';ex.lineWidth=1;
+  for(var r3=0;r3<=ROWS;r3+=10){ex.beginPath();ex.moveTo(0,r3*sz);ex.lineTo(W,r3*sz);ex.stroke();}
+  for(var c3=0;c3<=COLS;c3+=10){ex.beginPath();ex.moveTo(c3*sz,0);ex.lineTo(c3*sz,H);ex.stroke();}
+  dl(ec,'pattern.png');
+}
+
+function xChart(){
+  var sz=18, legH=Math.ceil(palette.length/3)*22+30;
+  var W=COLS*sz+40, H=ROWS*sz+50+legH;
   var ec=document.createElement('canvas');ec.width=W;ec.height=H;
   var ex=ec.getContext('2d');
   ex.fillStyle='#fff';ex.fillRect(0,0,W,H);
-  ex.fillStyle='#2d6a4f';ex.fillRect(0,0,W,hH);
-  ex.fillStyle='#fff';ex.font='bold 18px serif';ex.textAlign='left';ex.fillText('Floss List for Crosses',16,32);
-  ex.font='11px sans-serif';ex.fillStyle='#a8d5bf';ex.fillText('Use 2 strands of thread for cross stitch',16,50);
-  var xs=[16,40,82,190,390,480];
-  ex.fillStyle='#f0f0f0';ex.fillRect(0,hH,W,rH);
-  ex.font='bold 10px sans-serif';ex.fillStyle='#555';
-  ['N','Sym','DMC','Name','Stitches','%'].forEach(function(h,i){ex.fillText(h,xs[i],hH+17);});
-  sorted.forEach(function(x,idx){
-    var y=hH+rH*(idx+1);var dmc=nDMC(x.h);
-    if(idx%2===0){ex.fillStyle='#f9f9f9';ex.fillRect(0,y,W,rH);}
-    ex.fillStyle='#333';ex.font='10px sans-serif';ex.textAlign='left';ex.fillText(idx+1,xs[0],y+17);
-    ex.fillStyle=x.h;ex.fillRect(xs[1],y+6,13,13);ex.strokeStyle='#ccc';ex.lineWidth=.5;ex.strokeRect(xs[1],y+6,13,13);
-    ex.fillStyle='#333';ex.font='bold 9px monospace';ex.textAlign='center';ex.fillText(SYM[x.i%SYM.length],xs[1]+6,y+17);
-    ex.font='10px sans-serif';ex.textAlign='left';ex.fillText('DMC '+dmc.num,xs[2],y+17);
-    ex.fillStyle='#555';ex.fillText(dmc.name.substring(0,26),xs[3],y+17);
-    ex.fillStyle='#333';ex.textAlign='right';ex.fillText(x.n.toLocaleString(),xs[4]+50,y+17);
-    ex.fillStyle='#888';ex.fillText((x.n/total*100).toFixed(1)+'%',xs[5]+40,y+17);
-    ex.textAlign='left';ex.strokeStyle='#eee';ex.lineWidth=.3;ex.beginPath();ex.moveTo(0,y+rH);ex.lineTo(W,y+rH);ex.stroke();
-  });
-  var a=document.createElement('a');a.download='floss-list.png';a.href=ec.toDataURL();a.click();
-}
-function xFlossCSV(){
-  if(!palette.length)return alert('Convert an image first');
+  ex.fillStyle='#2a1f14';ex.font='bold 14px serif';
+  ex.fillText('Cross Stitch Pattern — '+COLS+'×'+ROWS,14,20);
+  var ox=20,oy=32;
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    var ci=grid[r][c];var px=ox+c*sz,py=oy+r*sz;
+    if(ci>=0&&ci<palette.length){
+      ex.fillStyle=palette[ci];ex.fillRect(px,py,sz,sz);
+      var rgb=h2r(palette[ci]);var lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
+      ex.fillStyle=lum>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
+      ex.font='bold '+(sz-5)+'px monospace';ex.textAlign='center';ex.textBaseline='middle';
+      ex.fillText(getSYM(ci),px+sz/2,py+sz/2);
+    }
+    ex.strokeStyle='rgba(0,0,0,.1)';ex.lineWidth=.4;ex.strokeRect(px,py,sz,sz);
+  }
+  // Bold 10-grid
+  ex.strokeStyle='rgba(0,0,0,.4)';ex.lineWidth=1;
+  for(var r2=0;r2<=ROWS;r2+=10){ex.beginPath();ex.moveTo(ox,oy+r2*sz);ex.lineTo(ox+COLS*sz,oy+r2*sz);ex.stroke();}
+  for(var c2=0;c2<=COLS;c2+=10){ex.beginPath();ex.moveTo(ox+c2*sz,oy);ex.lineTo(ox+c2*sz,oy+ROWS*sz);ex.stroke();}
+  // Legend
+  var lY=oy+ROWS*sz+20, lX=ox;
+  ex.fillStyle='#333';ex.font='bold 11px sans-serif';ex.textAlign='left';
+  ex.fillText('Symbol Legend:',lX,lY-2);
   var cnt=new Array(palette.length).fill(0);
   for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)cnt[grid[r][c]]++;
-  var sorted=palette.map(function(h,i){return{h:h,i:i,n:cnt[i]};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
-  var csv='N,Symbol,DMC,Name,Stitches,Hex\n';
-  sorted.forEach(function(x,idx){var dmc=nDMC(x.h);csv+=idx+1+','+SYM[x.i%SYM.length]+',DMC '+dmc.num+','+dmc.name+','+x.n+','+x.h+'\n';});
-  var a=document.createElement('a');a.download='floss-list.csv';a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.click();
-}
-function xFlossLengthPDF(){
-  if(!palette.length||!grid.flat().some(function(v){return v>=0;}))return alert('Please convert an image first');
-  loadJsPDF(function(){
-    var jsPDF=window.jspdf.jsPDF;
-    var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var A4W=210,MARGIN=12;
-    var ct=parseInt(document.getElementById('fab').value);
-    var wIn=(COLS/ct).toFixed(1),hIn=(ROWS/ct).toFixed(1);
-    var wCm=(COLS/ct*2.54).toFixed(1),hCm=(ROWS/ct*2.54).toFixed(1);
-
-    doc.setFillColor(45,106,79);doc.rect(0,0,A4W,18,'F');
-    doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont(undefined,'bold');
-    doc.text('Thread Length Guide',MARGIN,11);
-    doc.setFontSize(8);doc.setFont(undefined,'normal');
-    doc.text(COLS+' x '+ROWS+' stitches  |  '+document.getElementById('fab').options[document.getElementById('fab').selectedIndex].text,A4W-MARGIN,11,{align:'right'});
-
-    doc.setTextColor(80,80,80);doc.setFontSize(8);
-    doc.text('Finished size: '+wIn+'" x '+hIn+'" ('+wCm+' x '+hCm+' cm)',MARGIN,24);
-    doc.text('Use 2 strands of thread. Each stitch uses approx. 3.6cm of thread.',MARGIN,30);
-    doc.text('Add 20% extra for knots and waste. Skein = 800cm (8m).',MARGIN,35);
-
-    var cnt=new Array(palette.length).fill(0);
-    for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)cnt[grid[r][c]]++;
-    var sorted=palette.map(function(h,i){return{h:h,i:i,n:cnt[i]};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
-
-    var legY=44,rowH=8;
-    var cols2=[MARGIN,MARGIN+8,MARGIN+18,MARGIN+28,MARGIN+78,MARGIN+118,MARGIN+140,MARGIN+165];
-    doc.setFillColor(240,240,240);doc.rect(MARGIN,legY-4,A4W-MARGIN*2,rowH,'F');
-    doc.setTextColor(60,60,60);doc.setFontSize(7);doc.setFont(undefined,'bold');
-    ['N','Sym','','DMC Number','Name','Stitches','Length (cm)','Skeins'].forEach(function(h,i){doc.text(h,cols2[i],legY);});
-    legY+=rowH;
-
-    sorted.forEach(function(x,idx){
-      if(legY>280){doc.addPage();legY=15;}
-      if(idx%2===0){doc.setFillColor(250,249,247);doc.rect(MARGIN,legY-4,A4W-MARGIN*2,rowH,'F');}
-      var dmc=nDMC(x.h);
-      var rgb=h2r(x.h)||[200,200,200];
-      var lenCm=Math.ceil(x.n*3.6*1.2);
-      var skeins=Math.ceil(lenCm/800);
-      doc.setFillColor(rgb[0],rgb[1],rgb[2]);doc.rect(cols2[2],legY-3.5,5,5,'F');
-      doc.setDrawColor(180,180,180);doc.setLineWidth(0.2);doc.rect(cols2[2],legY-3.5,5,5,'S');
-      doc.setTextColor(30,30,30);doc.setFont(undefined,'normal');doc.setFontSize(7);
-      doc.text(String(idx+1),cols2[0],legY);
-      doc.text(SYM[x.i%SYM.length],cols2[1],legY);
-      doc.text('DMC '+String(dmc.num),cols2[3],legY);
-      doc.text(dmc.name.substring(0,26),cols2[4],legY);
-      doc.text(x.n.toLocaleString(),cols2[5],legY);
-      doc.text(lenCm.toLocaleString(),cols2[6],legY);
-      doc.text(String(skeins),cols2[7],legY);
-      doc.setDrawColor(230,230,230);doc.setLineWidth(0.2);doc.line(MARGIN,legY+2,A4W-MARGIN,legY+2);
-      legY+=rowH;
-    });
-
-    doc.save('floss-length.pdf');
+  palette.forEach(function(h,i){
+    if(cnt[i]===0)return;
+    var d=nearDMC(h);
+    var col=Math.floor(i/3)*(W/3),row=i%3;
+    var lx=ox+col, ly=lY+12+row*20;
+    ex.fillStyle=d.hex;ex.fillRect(lx,ly-10,12,12);
+    ex.strokeStyle='#999';ex.lineWidth=.5;ex.strokeRect(lx,ly-10,12,12);
+    var rgb=h2r(d.hex);var lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
+    ex.fillStyle=lum>140?'#000':'#fff';ex.font='bold 8px monospace';ex.textAlign='center';ex.textBaseline='middle';
+    ex.fillText(getSYM(i),lx+6,ly-4);
+    ex.fillStyle='#333';ex.font='10px sans-serif';ex.textAlign='left';ex.textBaseline='alphabetic';
+    ex.fillText(getSYM(i)+' DMC '+d.num+' '+d.name.substring(0,18)+' ('+cnt[i]+')',lx+16,ly);
   });
+  dl(ec,'chart.png');
 }
-function xPatternKeeper(){
-  if(!palette.length||!grid.flat().some(function(v){return v>=0;}))return alert('Please convert an image first');
-  loadJsPDF(function(){
-    var jsPDF=window.jspdf.jsPDF;
-    // Portrait A4
-    var PW=210,PH=297,MARGIN=8;
-    var ct=parseInt(document.getElementById('fab').value);
-    var wCm=(COLS/ct*2.54).toFixed(1),hCm=(ROWS/ct*2.54).toFixed(1);
 
-    var cnt=new Array(palette.length).fill(0);
-    for(var ri=0;ri<ROWS;ri++)for(var ci2=0;ci2<COLS;ci2++)if(grid[ri][ci2]>=0)cnt[grid[ri][ci2]]++;
-    var sorted=palette.map(function(h,i){return{h:h,i:i,n:cnt[i]};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
+function xFlossPNG(){
+  var cnt=new Array(palette.length).fill(0);
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)cnt[grid[r][c]]++;
+  var used=palette.map(function(h,i){return{h:h,n:cnt[i],i:i};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
+  var total=used.reduce(function(s,x){return s+x.n;},0);
+  var rH=28, hH=60, W=580, H=hH+used.length*rH+20;
+  var ec=document.createElement('canvas');ec.width=W;ec.height=H;
+  var ex=ec.getContext('2d');
+  ex.fillStyle='#fff';ex.fillRect(0,0,W,H);
+  ex.fillStyle='#1a1814';ex.fillRect(0,0,W,hH);
+  ex.fillStyle='#c9a84c';ex.font='bold 16px serif';ex.textAlign='left';ex.fillText('🧵 Floss List — '+COLS+'×'+ROWS+' stitches',14,30);
+  ex.fillStyle='rgba(201,168,76,.5)';ex.font='11px sans-serif';ex.fillText(used.length+' DMC colors required',14,48);
+  var xs=[12,34,76,180,380,460];
+  ex.fillStyle='#aaa';ex.font='bold 9px sans-serif';
+  ['#','Sym','DMC','Name','Stitches','%'].forEach(function(h,i){ex.fillText(h,xs[i],hH+14);});
+  used.forEach(function(x,idx){
+    var y=hH+rH*(idx+1);var d=nearDMC(x.h);
+    if(idx%2===0){ex.fillStyle='#f8f7f5';ex.fillRect(0,y,W,rH-1);}
+    ex.fillStyle='#222';ex.font='10px sans-serif';ex.textAlign='left';ex.fillText(idx+1,xs[0],y+16);
+    ex.fillStyle=d.hex;ex.fillRect(xs[1],y+6,14,14);
+    ex.strokeStyle='#999';ex.lineWidth=.8;ex.strokeRect(xs[1],y+6,14,14);
+    var rgb=h2r(d.hex);var lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
+    ex.fillStyle=lum>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
+    ex.font='bold 8px monospace';ex.textAlign='center';ex.fillText(getSYM(x.i),xs[1]+7,y+16);
+    ex.fillStyle='#222';ex.font='10px sans-serif';ex.textAlign='left';ex.fillText('DMC '+d.num,xs[2],y+16);
+    ex.fillStyle='#555';ex.fillText(d.name.substring(0,24),xs[3],y+16);
+    ex.fillStyle='#222';ex.textAlign='right';ex.fillText(x.n.toLocaleString(),xs[4]+60,y+16);
+    ex.fillStyle='#888';ex.fillText((x.n/total*100).toFixed(1)+'%',xs[5]+48,y+16);
+    ex.textAlign='left';ex.strokeStyle='#eee';ex.lineWidth=.3;ex.beginPath();ex.moveTo(0,y+rH);ex.lineTo(W,y+rH);ex.stroke();
+  });
+  dl(ec,'floss-list.png');
+}
 
-    // 2x2 split: 4 blocks
-    var HX=Math.ceil(COLS/2); // half cols
-    var HY=Math.ceil(ROWS/2); // half rows
-    var blocks=[
-      {x0:0,  y0:0,  x1:HX,   y1:HY},    // top-left
-      {x0:HX, y0:0,  x1:COLS, y1:HY},    // top-right
-      {x0:0,  y0:HY, x1:HX,   y1:ROWS},  // bottom-left
-      {x0:HX, y0:HY, x1:COLS, y1:ROWS}   // bottom-right
-    ];
-    var blockLabels=['Top Left','Top Right','Bottom Left','Bottom Right'];
-
-    var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var totalPages=blocks.length+1; // 4 chart + 1 legend
-
-    blocks.forEach(function(blk,idx){
-      if(idx>0)doc.addPage('a4','portrait');
-
-      var bW=blk.x1-blk.x0;
-      var bH=blk.y1-blk.y0;
-
-      // Render at high resolution: 12px per stitch
-      var PX=12;
-      var rulerPx=30;
-      var canW=bW*PX+rulerPx;
-      var canH=bH*PX+rulerPx;
-
-      var ec=document.createElement('canvas');
-      ec.width=canW; ec.height=canH;
-      var ex=ec.getContext('2d');
-
-      // White background
-      ex.fillStyle='#ffffff';ex.fillRect(0,0,canW,canH);
-
-      // Draw cells
-      for(var r=0;r<bH;r++){
-        for(var c=0;c<bW;c++){
-          var gi=grid[blk.y0+r][blk.x0+c];
-          var cx=rulerPx+c*PX, cy=rulerPx+r*PX;
-          if(gi>=0&&gi<palette.length){
-            ex.fillStyle='#e6e6e6';
-            ex.fillRect(cx,cy,PX,PX);
-            ex.fillStyle='#000000';
-            ex.font='bold '+(PX-2)+'px monospace';
-            ex.textAlign='center';
-            ex.textBaseline='middle';
-            ex.fillText(SYM[gi%SYM.length],cx+PX/2,cy+PX/2);
-          }
-          ex.strokeStyle='rgba(150,150,150,0.5)';
-          ex.lineWidth=0.3;
-          ex.strokeRect(cx,cy,PX,PX);
-        }
-      }
-
-      // Bold every-10 lines
-      ex.strokeStyle='rgba(70,70,70,0.7)';ex.lineWidth=1;
-      for(var r2=0;r2<=bH;r2+=10){
-        var liy=rulerPx+r2*PX;
-        ex.beginPath();ex.moveTo(rulerPx,liy);ex.lineTo(rulerPx+bW*PX,liy);ex.stroke();
-      }
-      for(var c2=0;c2<=bW;c2+=10){
-        var lix=rulerPx+c2*PX;
-        ex.beginPath();ex.moveTo(lix,rulerPx);ex.lineTo(lix,rulerPx+bH*PX);ex.stroke();
-      }
-      // Outer border
-      ex.strokeStyle='#222222';ex.lineWidth=2;
-      ex.strokeRect(rulerPx,rulerPx,bW*PX,bH*PX);
-
-      // Col ruler (every 10, show actual coords)
-      ex.fillStyle='#333333';
-      ex.font='bold 10px sans-serif';
-      ex.textAlign='center';ex.textBaseline='middle';
-      for(var c3=0;c3<=bW;c3+=10){
-        if(c3===0)continue;
-        ex.fillText(String(blk.x0+c3),rulerPx+c3*PX,rulerPx/2);
-      }
-      // Row ruler (every 10)
-      ex.textAlign='right';
-      for(var r3=0;r3<=bH;r3+=10){
-        if(r3===0)continue;
-        ex.fillText(String(blk.y0+r3),rulerPx-3,rulerPx+r3*PX-PX/2);
-      }
-
-      // Embed into PDF - fill entire A4 content area
-      var imgData=ec.toDataURL('image/png');
-      var availW=PW-MARGIN*2;
-      var availH=PH-MARGIN*2-12; // leave room for header/footer
-      var scaleX=availW/canW;
-      var scaleY=availH/canH;
-      var sc=Math.min(scaleX,scaleY);
-      var pw2=canW*sc, ph2=canH*sc;
-      var ox=(PW-pw2)/2;
-      var oy=MARGIN+4;
-
-      // Header
-      doc.setFontSize(8);doc.setFont(undefined,'bold');doc.setTextColor(40,40,40);
-      doc.text(
-        'Chart Block '+(idx+1)+' / '+blocks.length+'  —  '+blockLabels[idx]+'  (X:'+(blk.x0+1)+'-'+blk.x1+'  Y:'+(blk.y0+1)+'-'+blk.y1+')',
-        PW/2, MARGIN+1, {align:'center'}
-      );
-
-      doc.addImage(imgData,'PNG',ox,oy,pw2,ph2);
-
-      // Footer
-      doc.setFontSize(6);doc.setFont(undefined,'normal');doc.setTextColor(100,100,100);
-      doc.text(
-        COLS+' x '+ROWS+' stitches  |  '+wCm+' x '+hCm+' cm  |  '+sorted.length+' colors',
-        PW/2, oy+ph2+4, {align:'center'}
-      );
-      doc.text((idx+1)+' / '+totalPages, PW-MARGIN, PH-3, {align:'right'});
-    });
-
-    // ── LEGEND PAGE ─────────────────────────────────────────────────────────
-    doc.addPage('a4','portrait');
-    doc.setFontSize(11);doc.setFont(undefined,'bold');doc.setTextColor(0,0,0);
-    doc.text('Symbol Legend',MARGIN,12);
-    doc.setLineWidth(0.4);doc.setDrawColor(60,60,60);
-    doc.line(MARGIN,14,PW-MARGIN,14);
-
-    var nCols3=2; // 2 columns in portrait
-    var colW2=(PW-MARGIN*2)/nCols3;
-    var hx=[0,9,27,70];
-    for(var hc=0;hc<nCols3;hc++){
-      var ox2=MARGIN+hc*colW2;
-      doc.setFontSize(7);doc.setFont(undefined,'bold');doc.setTextColor(60,60,60);
-      ['Sym','DMC Number','Name','Stitches'].forEach(function(h,i){doc.text(h,ox2+hx[i],20);});
-      doc.setDrawColor(150,150,150);doc.setLineWidth(0.2);
-      doc.line(ox2,22,ox2+colW2-2,22);
+function xPDF(){
+  // Simple: open chart in new window as printable
+  var win=window.open('','_blank');
+  var sz=14, W=COLS*sz+60, H=ROWS*sz+80;
+  win.document.write('<html><head><title>Cross Stitch Pattern</title><style>body{margin:20px;font-family:sans-serif}canvas{border:1px solid #ccc}@media print{button{display:none}}</style></head><body>');
+  win.document.write('<button onclick="window.print()">🖨️ Print / Save PDF</button><br><br>');
+  var ec=document.createElement('canvas');ec.width=W;ec.height=H;
+  var ex=ec.getContext('2d');
+  ex.fillStyle='#fff';ex.fillRect(0,0,W,H);
+  ex.fillStyle='#333';ex.font='bold 13px serif';ex.fillText('Cross Stitch — '+COLS+'×'+ROWS+' | '+palette.length+' colors',14,18);
+  var ox2=30,oy2=28;
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    var ci=grid[r][c];var px2=ox2+c*sz,py2=oy2+r*sz;
+    if(ci>=0&&ci<palette.length){
+      ex.fillStyle=palette[ci];ex.fillRect(px2,py2,sz,sz);
+      var rgb=h2r(palette[ci]);var lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
+      ex.fillStyle=lum>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
+      ex.font='bold '+(sz-4)+'px monospace';ex.textAlign='center';ex.textBaseline='middle';
+      ex.fillText(getSYM(ci),px2+sz/2,py2+sz/2);
     }
-
-    var legY=28,rowH=5.5,colIdx=0;
-    sorted.forEach(function(x){
-      var dmc=nDMC(x.h);
-      var ox3=MARGIN+colIdx*colW2;
-
-      doc.setFillColor(230,230,230);
-      doc.rect(ox3+hx[0],legY-3.5,7,4.5,'F');
-      doc.setDrawColor(130,130,130);doc.setLineWidth(0.15);
-      doc.rect(ox3+hx[0],legY-3.5,7,4.5);
-      doc.setFontSize(6);doc.setFont(undefined,'bold');doc.setTextColor(0,0,0);
-      doc.text(SYM[x.i%SYM.length],ox3+hx[0]+3.5,legY,{align:'center'});
-
-      doc.setFont(undefined,'normal');doc.setFontSize(6);
-      doc.text('DMC '+String(dmc.num),ox3+hx[1],legY);
-      doc.setTextColor(40,40,40);
-      doc.text(dmc.name.substring(0,26),ox3+hx[2],legY);
-      doc.setTextColor(100,100,100);
-      doc.text(x.n.toLocaleString(),ox3+colW2-3,legY,{align:'right'});
-
-      doc.setDrawColor(210,210,210);doc.setLineWidth(0.1);
-      doc.line(ox3,legY+1.5,ox3+colW2-2,legY+1.5);
-
-      legY+=rowH;
-      if(legY>PH-10){
-        legY=28;colIdx++;
-        if(colIdx>=nCols3){colIdx=0;legY=28;doc.addPage('a4','portrait');}
-      }
-    });
-
-    // Size info
-    doc.setFontSize(7);doc.setTextColor(80,80,80);
-    doc.text('Finished size: '+wCm+' x '+hCm+' cm  |  '+COLS+' x '+ROWS+' stitches  |  '+sorted.length+' DMC colors',
-      PW/2, PH-8, {align:'center'});
-    doc.setFontSize(5);doc.setTextColor(130,130,130);
-    doc.text(totalPages+' / '+totalPages,PW-MARGIN,PH-3,{align:'right'});
-
-    doc.save('pattern-keeper.pdf');
-  });
+    ex.strokeStyle='rgba(0,0,0,.12)';ex.lineWidth=.4;ex.strokeRect(px2,py2,sz,sz);
+  }
+  ex.strokeStyle='rgba(0,0,0,.4)';ex.lineWidth=.8;
+  for(var r3=0;r3<=ROWS;r3+=10){ex.beginPath();ex.moveTo(ox2,oy2+r3*sz);ex.lineTo(ox2+COLS*sz,oy2+r3*sz);ex.stroke();}
+  for(var c3=0;c3<=COLS;c3+=10){ex.beginPath();ex.moveTo(ox2+c3*sz,oy2);ex.lineTo(ox2+c3*sz,oy2+ROWS*sz);ex.stroke();}
+  win.document.write('<img src="'+ec.toDataURL()+'">');
+  win.document.write('</body></html>');
+  win.document.close();
 }
+
+function dl(canvas,name){
+  var a=document.createElement('a');a.download=name;a.href=canvas.toDataURL();a.click();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DESCRIPTION GENERATOR
+// ═══════════════════════════════════════════════════════════════════
 function genDesc(){
-  var nc=palette.filter(function(_,i){for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]===i)return true;return false;}).length;
-  var ct=parseInt(document.getElementById('fab').value);
-  var fn=document.getElementById('fab').options[document.getElementById('fab').selectedIndex].text;
-  var wI=(COLS/ct).toFixed(2),hI=(ROWS/ct).toFixed(2);
-  var wC=(COLS/ct*2.54).toFixed(2),hC=(ROWS/ct*2.54).toFixed(2);
-  var hoop=Math.ceil(Math.max(COLS,ROWS)/ct+2);
-  var desc='All patterns contain a maximum of 20-25 colors.\nPaper size: A4 (210 x 297 mm, 8.3 x 11.7 inches)\n\nPURCHASE DETAILS\n- PDF Pattern in Color x 3 Grid Sizes\n- PDF Pattern in Black and White x 3 Grid Sizes\n- PDF Floss length\n- PDF for Pattern Keeper\n\nPATTERN SIZE\nDMC colors: '+nc+'\nFabric: '+fn+'\nStitches: '+COLS+' x '+ROWS+'\nSize: '+wI+' x '+hI+' inches ('+wC+' x '+hC+' cm)\nHoop size: '+hoop+' inches';
-  var el=document.getElementById('dbox');el.textContent=desc;el.style.color='#1a1714';
+  var cnt=new Array(palette.length).fill(0);
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0)cnt[grid[r][c]]++;
+  var nc=cnt.filter(function(x){return x>0;}).length;
+  var ct=parseInt(document.getElementById('fab').value)||14;
+  var fn=document.getElementById('fab').options[document.getElementById('fab').selectedIndex]?.text||'14ct';
+  var wI=(COLS/ct).toFixed(1),hI=(ROWS/ct).toFixed(1);
+  var wC=(COLS/ct*2.54).toFixed(1),hC=(ROWS/ct*2.54).toFixed(1);
+  var lines=[];
+  lines.push('✦ Cross Stitch Pattern — PDF Download');
+  lines.push('');
+  lines.push('PATTERN SIZE');
+  lines.push('Stitches: '+COLS+' × '+ROWS);
+  lines.push('Fabric: '+fn);
+  lines.push('Finished size: '+wI+'" × '+hI+'" ('+wC+' × '+hC+' cm)');
+  lines.push('Colors: '+nc+' DMC shades');
+  lines.push('');
+  lines.push('PURCHASE INCLUDES:');
+  lines.push('• PDF Pattern Color (A4)');
+  lines.push('• PDF Pattern B&W (A4)');
+  lines.push('• PDF Floss Length Guide');
+  lines.push('');
+  lines.push('DMC THREAD LIST:');
+  palette.map(function(h,i){return{h:h,n:cnt[i],i:i};})
+    .filter(function(x){return x.n>0;})
+    .sort(function(a,b){return b.n-a.n;})
+    .forEach(function(x){
+      var d=nearDMC(x.h);
+      lines.push('DMC '+d.num+' – '+d.name+' ('+x.n+' stitches)');
+    });
+  var el=document.getElementById('dbox');
+  el.textContent=lines.join('\n');
+  el.style.color='var(--cream-dim)';
+  document.getElementById('cbtn').classList.add('gr');
 }
 function copyDesc(){
   var t=document.getElementById('dbox').textContent;
-  if(!t||t.includes('Click Generate'))return;
+  if(!t||t.includes('Generate'))return;
   navigator.clipboard.writeText(t).then(function(){
-    var b=document.getElementById('cbtn');b.textContent='Copied!';b.classList.add('pr');
-    setTimeout(function(){b.textContent='Copy';b.classList.remove('pr');},2000);
+    var b=document.getElementById('cbtn');b.textContent='✓ Copied!';
+    setTimeout(function(){b.textContent='Copy';},2000);
   });
 }
 
-// ── BOOT ──────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════════
 function boot(){
   grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
-  updSt();updPal();render();
-  setTimeout(function(){
-    var sbW=document.getElementById('sidebar').offsetWidth||240;
-    var w=area.offsetWidth||(window.innerWidth-sbW)||800;
-    var h=area.offsetHeight||(window.innerHeight-70)||600;
-    ZL=Math.min(w/(COLS*CELL),h/(ROWS*CELL));ZL=Math.max(0.05,ZL);
-    document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';render();
-  },100);
-  setTimeout(function(){
-    var sbW=document.getElementById('sidebar').offsetWidth||240;
-    var w=area.offsetWidth||(window.innerWidth-sbW)||800;
-    var h=area.offsetHeight||(window.innerHeight-70)||600;
-    ZL=Math.min(w/(COLS*CELL),h/(ROWS*CELL));ZL=Math.max(0.05,ZL);
-    document.getElementById('zpct').textContent=Math.round(ZL*100)+'%';render();
-  },600);
+  updSt();updPal();
+  setTimeout(function(){fitZoom();},100);
   window.addEventListener('resize',function(){render();});
-  document.addEventListener('keydown',function(e){
-    if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
-  });
 }
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',boot);}else{setTimeout(boot,0);}
-
 </script>
 </body>
 </html>
