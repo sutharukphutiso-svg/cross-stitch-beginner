@@ -977,93 +977,88 @@ function doConvert(){
       grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
       palette=[];SI=0;hist=[];hlab=[];dmcCache={};
 
-      pf.style.width='15%';pt.textContent='กำลังลดขนาดภาพ...';
+      pf.style.width='20%';pt.textContent='กำลังอ่าน pixel...';
 
-      // ── STEP 1: Smart downsample ──
-      // Draw image at NATIVE size first, then sample per-block
+      // ── STEP 1-3: Direct pixel-art aware sampling ──────────────────
+      // Draw image at NATIVE resolution
       var natW=refSrc.naturalWidth, natH=refSrc.naturalHeight;
-      var maxNat=Math.min(natW,1600); // cap for performance
-      var natScale=Math.min(1, maxNat/Math.max(natW,natH));
+      var cap2=1600, natScale=Math.min(1,cap2/Math.max(natW,natH));
       var drawW=Math.round(natW*natScale), drawH=Math.round(natH*natScale);
 
-      // Draw on white bg (for alpha detection)
+      // White bg render (for alpha + color reading)
       refC.width=drawW; refC.height=drawH;
-      refX.clearRect(0,0,drawW,drawH);
-      refX.fillStyle='#ffffff';
-      refX.fillRect(0,0,drawW,drawH);
+      refX.fillStyle='#ffffff'; refX.fillRect(0,0,drawW,drawH);
       refX.drawImage(refSrc,0,0,drawW,drawH);
       var srcW=refX.getImageData(0,0,drawW,drawH).data;
 
-      // Draw on black bg (for alpha detection)
-      refX.fillStyle='#000000';
-      refX.fillRect(0,0,drawW,drawH);
+      // Black bg render (for alpha detection only)
+      refX.fillStyle='#000000'; refX.fillRect(0,0,drawW,drawH);
       refX.drawImage(refSrc,0,0,drawW,drawH);
       var srcB=refX.getImageData(0,0,drawW,drawH).data;
 
-      // Detect pixel art mode: use autoSize result or compute from block ratio
-      var bW2=drawW/COLS, bH2=drawH/ROWS;
-      var pixelArtLikely = (detectedBlockSize>=2) ||
-                           (bW2>=2 && bH2>=2 && Math.abs(bW2-Math.round(bW2))<0.4);
-
-      // Per-block sampling function
-      // For pixel art: take center pixel (most accurate)
-      // For flat art: take median/average of block
-      function sampleBlock(col,row,srcData,W,H,useCenter){
-        var x0=Math.floor(col*W/COLS), x1=Math.floor((col+1)*W/COLS);
-        var y0=Math.floor(row*H/ROWS), y1=Math.floor((row+1)*H/ROWS);
-        x1=Math.max(x1,x0+1); y1=Math.max(y1,y0+1);
-        if(useCenter){
-          // Take center pixel only — preserves pixel art colors exactly
-          var cx=Math.floor((x0+x1)/2), cy=Math.floor((y0+y1)/2);
-          var ci=(cy*W+cx)*4;
-          return[srcData[ci],srcData[ci+1],srcData[ci+2],srcData[ci+3]];
-        }
-        // Average the block
-        var tr=0,tg=0,tb=0,ta=0,n=0;
-        for(var y=y0;y<y1;y++){
-          for(var x=x0;x<x1;x++){
-            var i2=(y*W+x)*4;
-            tr+=srcData[i2];tg+=srcData[i2+1];tb+=srcData[i2+2];ta+=srcData[i2+3];n++;
-          }
-        }
-        return[Math.round(tr/n),Math.round(tg/n),Math.round(tb/n),Math.round(ta/n)];
-      }
-
-      // Build pxW and pxB as flat arrays (same format as before)
-      var pxW=new Uint8ClampedArray(COLS*ROWS*4);
-      var pxB=new Uint8ClampedArray(COLS*ROWS*4);
-      for(var rr=0;rr<ROWS;rr++){
-        for(var cc=0;cc<COLS;cc++){
-          var sw2=sampleBlock(cc,rr,srcW,drawW,drawH,pixelArtLikely);
-          var sb2=sampleBlock(cc,rr,srcB,drawW,drawH,pixelArtLikely);
-          var bi2=(rr*COLS+cc)*4;
-          pxW[bi2]=sw2[0];pxW[bi2+1]=sw2[1];pxW[bi2+2]=sw2[2];pxW[bi2+3]=sw2[3];
-          pxB[bi2]=sb2[0];pxB[bi2+1]=sb2[1];pxB[bi2+2]=sb2[2];pxB[bi2+3]=sb2[3];
-        }
-      }
-
-      pf.style.width='25%';pt.textContent='ตรวจจับความโปร่งใส...';
-
-      // ── STEP 2: Alpha detection ──
+      // Detect alpha from white-vs-black diff
       var alphaCnt=0;
-      for(var i=0;i<ROWS*COLS;i++){
+      for(var i=0;i<drawH*drawW;i++){
         var idx=i*4;
-        if(pxW[idx]-pxB[idx]>160&&pxW[idx+1]-pxB[idx+1]>160&&pxW[idx+2]-pxB[idx+2]>160)alphaCnt++;
+        if(srcW[idx]-srcB[idx]>150&&srcW[idx+1]-srcB[idx+1]>150&&srcW[idx+2]-srcB[idx+2]>150)alphaCnt++;
       }
-      var hasAlpha=(alphaCnt>ROWS*COLS*0.005);
+      var hasAlpha=(alphaCnt>drawH*drawW*0.005);
 
-      // ── STEP 3: Build pixel grid ──
+      // Block size in native pixels
+      var blockW=drawW/COLS, blockH=drawH/ROWS;
+      var isPixelArtMode=(detectedBlockSize>=2)||(blockW>=2&&blockH>=2);
+
+      // ── Per-block dominant color (handles JPEG compression noise) ──
+      function getDominantColor(col,row,srcData,W){
+        var x0=Math.floor(col*blockW), x1=Math.floor((col+1)*blockW);
+        var y0=Math.floor(row*blockH), y1=Math.floor((row+1)*blockH);
+        x1=Math.max(x1,x0+1); y1=Math.max(y1,y0+1);
+
+        if(!isPixelArtMode){
+          // Flat art: simple average
+          var tr=0,tg=0,tb=0,ta=0,n=0;
+          for(var y=y0;y<y1;y++) for(var x=x0;x<x1;x++){
+            var i=(y*W+x)*4;
+            tr+=srcData[i];tg+=srcData[i+1];tb+=srcData[i+2];ta+=srcData[i+3];n++;
+          }
+          return[Math.round(tr/n),Math.round(tg/n),Math.round(tb/n),Math.round(ta/n)];
+        }
+
+        // Pixel art: find dominant color using 4-bit quantized histogram
+        // This neutralizes JPEG compression (±5 per channel noise)
+        var hist={};
+        for(var y=y0;y<y1;y++) for(var x=x0;x<x1;x++){
+          var i=(y*W+x)*4;
+          var a=srcData[i+3];
+          if(a<40)continue;
+          // Quantize to 4-bit per channel (bin size=16)
+          var qr=(srcData[i]>>4), qg=(srcData[i+1]>>4), qb=(srcData[i+2]>>4);
+          var key=(qr<<8)|(qg<<4)|qb;
+          if(!hist[key]){hist[key]={r:0,g:0,b:0,a:0,n:0};}
+          hist[key].r+=srcData[i];hist[key].g+=srcData[i+1];
+          hist[key].b+=srcData[i+2];hist[key].a+=a;hist[key].n++;
+        }
+        // Return the most common bin's average (real color, not quantized)
+        var bestKey=null,bestN=0;
+        Object.keys(hist).forEach(function(k){if(hist[k].n>bestN){bestN=hist[k].n;bestKey=k;}});
+        if(!bestKey)return[255,255,255,255];
+        var h=hist[bestKey];
+        return[Math.round(h.r/h.n),Math.round(h.g/h.n),Math.round(h.b/h.n),Math.round(h.a/h.n)];
+      }
+
+      // Build pg (pixel grid) and bgMask
       var pg=[], bgMask=[], fgPixels=[];
       for(var r=0;r<ROWS;r++){
         pg.push([]); bgMask.push([]);
         for(var c=0;c<COLS;c++){
-          var idx2=(r*COLS+c)*4;
-          var rW=pxW[idx2],gW=pxW[idx2+1],bW=pxW[idx2+2];
-          var rB=pxB[idx2],gB=pxB[idx2+1],bB=pxB[idx2+2];
+          var col=getDominantColor(c,r,srcW,drawW);
+          var rW=col[0],gW=col[1],bW=col[2],aW=col[3];
           var isBg=false;
 
           if(hasAlpha){
-            var avgDiff=((rW-rB)+(gW-gB)+(bW-bB))/3;
+            // Alpha from black bg comparison
+            var colB=getDominantColor(c,r,srcB,drawW);
+            var avgDiff=((rW-colB[0])+(gW-colB[1])+(bW-colB[2]))/3;
             var alphaEst=Math.max(0,Math.min(1,1-avgDiff/255));
             if(alphaEst<0.25){isBg=true;}
             else if(alphaEst<0.8){
@@ -1073,7 +1068,6 @@ function doConvert(){
               bW=Math.round(Math.max(0,Math.min(255,(bW-(1-a)*255)/a)));
             }
           } else if(chkBg){
-            // Pre-mark near-white low-saturation pixels (flood fill refines later)
             var lum=0.299*rW+0.587*gW+0.114*bW;
             var sat=Math.max(rW,gW,bW)-Math.min(rW,gW,bW);
             if(lum>215&&sat<30)isBg=true;
