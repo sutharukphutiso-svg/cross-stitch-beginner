@@ -650,7 +650,12 @@ function autoSize(){
     }
     if(isMin)cands.push(cur);
   }
-  cands.sort(function(a,b){return a.v-b.v;});
+  cands.sort(function(a,b){
+    var aOk=(a.fw>=40&&a.fw<=120)?0:1;
+    var bOk=(b.fw>=40&&b.fw<=120)?0:1;
+    if(aOk!==bOk)return aOk-bOk;
+    return a.v-b.v;
+  });
 
   var hint=document.getElementById('size-hint');
   if(!cands.length){
