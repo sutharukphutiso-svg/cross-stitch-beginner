@@ -713,95 +713,119 @@ function matchRatio(){
 // Store detected pixel art block size for use in doConvert
 var detectedBlockSize=0;
 
-// ── AUTO SIZE: วิเคราะห์ pixel art block size ──────────────────────
+// ── AUTO SIZE: วิเคราะห์ pixel art block size (robust version) ────
 function autoSize(){
   if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
   var hint=document.getElementById('auto-size-hint');
 
-  // Sample image at native size (up to 400px)
-  var maxSide=400;
   var sw=refSrc.naturalWidth, sh=refSrc.naturalHeight;
-  var scale=Math.min(1, maxSide/Math.max(sw,sh));
-  var W=Math.round(sw*scale), H=Math.round(sh*scale);
 
+  // Draw at native size (cap 1200px for performance)
+  var capSide=1200;
+  var scale=Math.min(1, capSide/Math.max(sw,sh));
+  var W=Math.round(sw*scale), H=Math.round(sh*scale);
   var sc=document.createElement('canvas');sc.width=W;sc.height=H;
   var sx=sc.getContext('2d');
+  sx.fillStyle='#ffffff';sx.fillRect(0,0,W,H);
   sx.drawImage(refSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
 
-  // Detect if image is ALREADY pixel art by measuring avg block size
-  // Method: count horizontal runs of same-ish color
-  var runLengths=[];
-  for(var r=0;r<H;r+=2){
-    var runStart=0, pr=-1,pg=-1,pb=-1;
-    for(var c=0;c<W;c++){
-      var i=(r*W+c)*4;
-      var cr=px[i],cg=px[i+1],cb=px[i+2],ca=px[i+3];
-      if(ca<30){pr=-1;pg=-1;pb=-1;continue;}
-      var diff=Math.abs(cr-pr)+Math.abs(cg-pg)+Math.abs(cb-pb);
-      if(diff>30){
-        if(c-runStart>0)runLengths.push(c-runStart);
-        runStart=c;pr=cr;pg=cg;pb=cb;
+  function getLum(x,y){var i=(y*W+x)*4;return 0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];}
+
+  // ── Method: scan horizontal edge transitions ──
+  // Count pixels between consecutive color-change edges
+  var gaps=[];
+  for(var row=Math.floor(H*0.15);row<H*0.85;row+=3){
+    var lastEdge=-1;
+    var prev=[px[(row*W)*4],px[(row*W)*4+1],px[(row*W)*4+2]];
+    for(var col=1;col<W;col++){
+      var i=(row*W+col)*4;
+      var a=px[i+3];if(a<40)continue;
+      var dr=Math.abs(px[i]-prev[0]),dg=Math.abs(px[i+1]-prev[1]),db=Math.abs(px[i+2]-prev[2]);
+      if(dr+dg+db>60){
+        if(lastEdge>=0){var g=col-lastEdge;if(g>=2&&g<=80)gaps.push(g);}
+        lastEdge=col;
+        prev=[px[i],px[i+1],px[i+2]];
       }
     }
   }
-  runLengths.sort(function(a,b){return a-b;});
-  var medRun=runLengths.length>0?runLengths[Math.floor(runLengths.length*0.35)]:1;
-
-  // Estimate pixel block size (GCD-like approach on common run lengths)
-  var blockSize=Math.max(1,Math.round(medRun));
-  // Find most common block size candidate
-  var freq={};
-  runLengths.forEach(function(l){
-    for(var b=1;b<=Math.min(l,20);b++){
-      if(l%b<=1){freq[b]=(freq[b]||0)+1;}
+  // Also scan vertical
+  for(var col2=Math.floor(W*0.15);col2<W*0.85;col2+=3){
+    var lastEdge2=-1;
+    var prev2=[px[col2*4],px[col2*4+1],px[col2*4+2]];
+    for(var row2=1;row2<H;row2++){
+      var i2=(row2*W+col2)*4;
+      var a2=px[i2+3];if(a2<40)continue;
+      var dr2=Math.abs(px[i2]-prev2[0]),dg2=Math.abs(px[i2+1]-prev2[1]),db2=Math.abs(px[i2+2]-prev2[2]);
+      if(dr2+dg2+db2>60){
+        if(lastEdge2>=0){var g2=row2-lastEdge2;if(g2>=2&&g2<=80)gaps.push(g2);}
+        lastEdge2=row2;
+        prev2=[px[i2],px[i2+1],px[i2+2]];
+      }
     }
-  });
-  var bestBlock=1,bestScore=0;
-  for(var b=2;b<=20;b++){
-    var score=(freq[b]||0)*(b*b); // favor larger blocks
-    if(score>bestScore){bestScore=score;bestBlock=b;}
   }
-  if(bestBlock<2)bestBlock=Math.max(1,blockSize);
 
-  // Calculate native pixel art grid size
-  var nativeW=Math.round(sw/bestBlock);
-  var nativeH=Math.round(sh/bestBlock);
+  if(!gaps.length){
+    // fallback: not pixel art
+    detectedBlockSize=0;
+    var base=Math.max(sw,sh)>1500?80:60;
+    _applySize(base, Math.round(base*sh/sw), false, 0, hint);
+    return;
+  }
 
-  // Clamp to reasonable stitch range (20–120)
-  var targetW=Math.max(20,Math.min(120,nativeW));
-  var targetH=Math.max(20,Math.min(120,nativeH));
+  // ── Find GCD-like dominant block size ──
+  // Score each candidate b: sum of gaps that are close to a multiple of b
+  var scores={};
+  for(var b=2;b<=60;b++){
+    var score=0;
+    gaps.forEach(function(g){
+      var rem=g%b;
+      var nearness=Math.min(rem, b-rem); // 0=perfect multiple
+      if(nearness<=1)score+=b; // reward larger b more
+    });
+    scores[b]=score;
+  }
+  // Find best block size
+  var bestB=2,bestS=0;
+  for(var b2=2;b2<=60;b2++){
+    if(scores[b2]>bestS){bestS=scores[b2];bestB=b2;}
+  }
 
-  // If NOT pixel art (blockSize=1), suggest size based on complexity
-  var isPixelArt=(bestBlock>=2);
+  // Verify: at this block size, how many stitches?
+  // Use actual image dimensions (not scaled)
+  var realBlock=bestB/scale; // unscale back to native px
+  var stitchW=Math.round(sw/realBlock);
+  var stitchH=Math.round(sh/realBlock);
+
+  var isPixelArt=(bestB>=3 && stitchW>=10 && stitchW<=200);
+
   if(!isPixelArt){
-    // Flat art: suggest based on image aspect + moderate size
-    var longer=Math.max(sw,sh);
-    var base=longer>2000?80:longer>800?60:40;
-    if(sw>=sh){targetW=base;targetH=Math.max(20,Math.round(base*sh/sw));}
-    else{targetH=base;targetW=Math.max(20,Math.round(base*sw/sh));}
+    detectedBlockSize=0;
+    var base2=Math.max(sw,sh)>1500?80:60;
+    _applySize(base2, Math.round(base2*sh/sw), false, 0, hint);
+    return;
   }
 
-  // Store for doConvert to use center-pixel sampling
-  detectedBlockSize = isPixelArt ? bestBlock : 0;
+  // Clamp
+  stitchW=Math.max(10,Math.min(150,stitchW));
+  stitchH=Math.max(10,Math.min(150,stitchH));
+  detectedBlockSize=Math.round(realBlock);
 
-  // Apply — update sliders, labels, AND preview immediately
-  document.getElementById('sW').value=targetW;document.getElementById('vW').textContent=targetW;
-  document.getElementById('sH').value=targetH;document.getElementById('vH').textContent=targetH;
+  _applySize(stitchW, stitchH, true, bestB, hint);
+}
+
+function _applySize(tw,th,isPixelArt,blockPx,hint){
+  document.getElementById('sW').value=tw;document.getElementById('vW').textContent=tw;
+  document.getElementById('sH').value=th;document.getElementById('vH').textContent=th;
   document.getElementById('lock').checked=false;
-
-  // Preview the new grid size immediately (clear and redraw at new size)
-  COLS=targetW; ROWS=targetH;
+  COLS=tw; ROWS=th;
   grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
   palette=[];SI=0;hist=[];hlab=[];dmcCache={};
-  updSt();updPal();updDMC();
-  fitZoom();
-
+  updSt();updPal();updDMC();fitZoom();
   var msg=isPixelArt
-    ? '🎮 Pixel art block='+bestBlock+'px → แนะนำ '+targetW+'×'+targetH+' stitches'
-    : '🖼 Flat art → แนะนำ '+targetW+'×'+targetH+' stitches';
-  hint.textContent=msg;
-  hint.style.display='block';
+    ? '🎮 Pixel art block≈'+blockPx+'px → แนะนำ '+tw+'×'+th+' stitches'
+    : '🖼 Flat/non-pixel art → แนะนำ '+tw+'×'+th+' stitches';
+  hint.textContent=msg;hint.style.display='block';
 }
 
 // ── AUTO COLORS: วิเคราะห์จำนวนสีที่เหมาะสม ──────────────────────
