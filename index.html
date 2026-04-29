@@ -1188,10 +1188,12 @@ function doConvert(){
           var k=(r2<<16)|(g2<<8)|b2;
           uniqueMap[k]=(uniqueMap[k]||0)+1;
         });
-        // Sort by frequency, take top maxNC
+        // Sort by frequency, filter rare colors (< 0.5% of fg pixels), take top
+        var totalFgPx=samplePx.length||1;
         var rawCenters=Object.entries(uniqueMap)
           .sort(function(a,b){return b[1]-a[1];})
-          .slice(0,palNc*3) // take more candidates first
+          .filter(function(e){ return e[1]/totalFgPx > 0.005; }) // drop < 0.5%
+          .slice(0,palNc*3)
           .map(function(e){
             var k=+e[0];
             return[(k>>16)&255,(k>>8)&255,k&255];
@@ -1284,7 +1286,7 @@ function doConvert(){
           if(grid[r][c]>=0)colorUsed[grid[r][c]]++;
         // For each rare color (< 5 uses), check if all its pixels are disconnected
         for(var ci3=0;ci3<palette.length;ci3++){
-          if(colorUsed[ci3]<5){
+          if(colorUsed[ci3]<8){
             // Mark this color's pixels as bg
             for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)
               if(grid[r][c]===ci3)grid[r][c]=-1;
