@@ -581,106 +581,55 @@ function syncH(){var v=+document.getElementById('sH').value;document.getElementB
 function setSize(w,h){document.getElementById('sW').value=w;document.getElementById('vW').textContent=w;document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;document.getElementById('lockAR').checked=false;}
 function setNC(n){document.getElementById('sNC').value=n;document.getElementById('vNC').textContent=n;}
 
-// ═══════════════ AUTO SIZE (Autocorrelation) ═══════════════
+// ═══════════════ AUTO SIZE ═══════════════
 function autoSize(){
   if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
   var hint=document.getElementById('size-hint');
   var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
+  hint.innerHTML='⏳ กำลังวิเคราะห์...';hint.style.display='block';
 
-  // Draw at native/capped size
-  var cap=1400,scl=Math.min(1,cap/Math.max(sw,sh));
-  var W=Math.round(sw*scl),H=Math.round(sh*scl);
-  var sc=document.createElement('canvas');sc.width=W;sc.height=H;
+  // Convert image to base64 (small size for API)
+  var sc=document.createElement('canvas');
+  var maxSz=400,s=Math.min(1,maxSz/Math.max(sw,sh));
+  sc.width=Math.round(sw*s);sc.height=Math.round(sh*s);
   var sx=sc.getContext('2d');
   sx.imageSmoothingEnabled=false;
-  sx.fillStyle='#fff';sx.fillRect(0,0,W,H);
-  sx.drawImage(imgSrc,0,0,W,H);
-  var px=sx.getImageData(0,0,W,H).data;
+  sx.drawImage(imgSrc,0,0,sc.width,sc.height);
+  var b64=sc.toDataURL('image/jpeg',0.85).split(',')[1];
 
-  // ── Autocorrelation of horizontal gradient profile ──────────────
-  // Sample middle 60% of rows → average gradient per column
-  var y0=Math.floor(H*0.2),y1=Math.floor(H*0.8);
-  var grad=new Float64Array(W);
-  var nRows=0;
-  for(var y=y0;y<y1;y+=2){
-    for(var x=1;x<W;x++){
-      var i=(y*W+x)*4,j=(y*W+x-1)*4;
-      grad[x]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
+  // Ask Claude API to identify block size
+  fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:100,
+      messages:[{
+        role:'user',
+        content:[
+          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+          {type:'text',text:'This is a pixel art image '+sw+'×'+sh+' pixels. What is the block size in pixels (how many pixels per pixel art square)? Reply with ONLY a single integer number, nothing else.'}
+        ]
+      }]
+    })
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    var txt=data.content&&data.content[0]&&data.content[0].text;
+    var blockPx=parseInt(txt);
+    if(isNaN(blockPx)||blockPx<1||blockPx>200){
+      hint.innerHTML='❌ วิเคราะห์ไม่ได้ — ลองใส่ Block px เองค่ะ';return;
     }
-    nRows++;
-  }
-  if(nRows>0)for(var x=0;x<W;x++)grad[x]/=nRows;
-
-  // Subtract mean
-  var mean=0;for(var x=0;x<W;x++)mean+=grad[x];mean/=W;
-  for(var x=0;x<W;x++)grad[x]-=mean;
-
-  // Compute autocorrelation at lags 4-60 using direct method
-  // acf[lag] = sum(grad[x]*grad[x+lag]) / sum(grad[x]^2)
-  var norm=0;for(var x=0;x<W;x++)norm+=grad[x]*grad[x];
-  if(norm<1e-9){
-    hint.textContent='ไม่พบ pattern';hint.style.display='block';detectedBlock=0;return;
-  }
-
-  // Also compute vertical ACF
-  var grady=new Float64Array(H);
-  var x0=Math.floor(W*0.2),x1=Math.floor(W*0.8);
-  var nCols=0;
-  for(var x=x0;x<x1;x+=2){
-    for(var y=1;y<H;y++){
-      var i=(y*W+x)*4,j=((y-1)*W+x)*4;
-      grady[y]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
-    }
-    nCols++;
-  }
-  if(nCols>0)for(var y=0;y<H;y++)grady[y]/=nCols;
-  var meany=0;for(var y=0;y<H;y++)meany+=grady[y];meany/=H;
-  for(var y=0;y<H;y++)grady[y]-=meany;
-  var normy=0;for(var y=0;y<H;y++)normy+=grady[y]*grady[y];
-
-  // Find best lag = block size
-  var bestLag=5,bestACF=-1;
-  var scores=[];
-  for(var lag=4;lag<=Math.min(80,Math.floor(W/4));lag++){
-    var fw=Math.round(sw/(lag/scl));
-    if(fw<10||fw>200)continue;
-    // ACF horizontal
-    var acfH=0;for(var x=0;x<W-lag;x++)acfH+=grad[x]*grad[x+lag];
-    acfH=norm>0?acfH/norm:0;
-    // ACF vertical
-    var acfV=0;if(normy>0){for(var y=0;y<H-lag;y++)acfV+=grady[y]*grady[y+lag];acfV/=normy;}
-    var acf=(acfH+acfV)/2;
-    scores.push({lag:lag,acf:acf,fw:fw});
-  }
-
-  // Find peak with fw in 20-120 range
-  var inRange=scores.filter(function(s){return s.fw>=20&&s.fw<=120;});
-  var pool=inRange.length>0?inRange:scores;
-  pool.sort(function(a,b){return b.acf-a.acf;});
-  var best=pool[0];
-
-  if(!best||best.acf<0.05){
-    var base=sw>800?80:60;
-    applySz(base,Math.round(base*sh/sw),0);
-    hint.textContent='🖼 ไม่พบ pixel art → '+base+'×'+Math.round(base*sh/sw);hint.style.display='block';
-    detectedBlock=0;return;
-  }
-
-  var realBlock=Math.round(best.lag/scl);
-  var fw=Math.max(10,Math.min(150,Math.round(sw/realBlock)));
-  var fh=Math.max(10,Math.min(150,Math.round(sh/realBlock)));
-  if(Math.abs(fw-fh)/Math.max(fw,fh)<0.07){var avg=Math.round((fw+fh)/2);fw=avg;fh=avg;}
-
-  detectedBlock=realBlock;
-  applySz(fw,fh,realBlock);
-
-  var msg='🎮 block≈'+realBlock+'px → <b>'+fw+'×'+fh+'</b> (acf='+best.acf.toFixed(2)+')';
-  // Show 2nd best as option
-  if(pool.length>1){
-    var b2=pool[1],rb2=Math.round(b2.lag/scl),fw2=Math.max(10,Math.min(150,Math.round(sw/rb2)));
-    msg+=' <span style="cursor:pointer;text-decoration:underline;color:var(--muted)" onclick="applySz('+fw2+','+fw2+','+rb2+')">'+fw2+'×'+fw2+'</span>';
-  }
-  hint.innerHTML=msg;hint.style.display='block';
+    var fw=Math.max(10,Math.min(150,Math.round(sw/blockPx)));
+    var fh=Math.max(10,Math.min(150,Math.round(sh/blockPx)));
+    if(Math.abs(fw-fh)/Math.max(fw,fh)<0.07){var avg=Math.round((fw+fh)/2);fw=avg;fh=avg;}
+    detectedBlock=blockPx;
+    applySz(fw,fh,blockPx);
+    hint.innerHTML='🎮 block='+blockPx+'px → <b>'+fw+'×'+fh+'</b>';
+  })
+  .catch(function(e){
+    hint.innerHTML='❌ Error: '+e.message;
+  });
 }
 
 
