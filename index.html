@@ -658,18 +658,21 @@ function autoSize(){
   });
 
   var hint=document.getElementById('size-hint');
-  if(!cands.length){
-    var base=Math.max(sw,sh)>1000?60:40;
+
+  // Filter candidates to 20-120 stitch range
+  var goodCands=cands.filter(function(c){return c.fw>=20&&c.fw<=120;});
+  if(!goodCands.length)goodCands=cands;
+
+  // Prefer 60-110 stitches (ideal cross stitch size)
+  var idealCands=goodCands.filter(function(c){return c.fw>=60&&c.fw<=110;});
+  var best=idealCands.length>0?idealCands[0]:goodCands[0];
+
+  if(!best){
+    var base=Math.max(sw,sh)>1000?80:60;
     applySz(base,Math.round(base*sh/sw),0);
     hint.textContent='🖼 Flat art → '+base+'×'+Math.round(base*sh/sw);hint.style.display='block';
     detectedBlock=0;return;
   }
-
-  var best=cands[0];
-  // Prefer candidates that give 80-110 stitches (most common for pixel art)
-  // This corrects browser variance calculation differences vs Python
-  var preferred=cands.filter(function(c){return c.fw>=80&&c.fw<=110;});
-  if(preferred.length>0)best=preferred[0];
   var realBlock=Math.round(best.b/scl);
   detectedBlock=realBlock;
 
@@ -691,6 +694,10 @@ function autoSize(){
     var fw2=Math.max(10,Math.min(150,fs[0])),fh2=Math.max(10,Math.min(150,fs[1]));
     msg+=' <span style="cursor:pointer;text-decoration:underline;color:var(--muted)" onclick="applySz('+fw2+','+fh2+','+rb+')">'+fw2+'×'+fh2+'</span>';
   });
+  // Show warning if result seems off (fw < 40)
+  if(best.fw<40){
+    msg+='<br><span style="color:#c0392b;font-size:10px">⚠️ ผลดูเล็กเกินไป — ลองใส่ Block px แล้วกด Apply</span>';
+  }
   hint.innerHTML=msg;hint.style.display='block';
 }
 function applyManualBlock(){
