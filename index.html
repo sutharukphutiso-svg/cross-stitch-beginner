@@ -666,6 +666,10 @@ function autoSize(){
   }
 
   var best=cands[0];
+  // Prefer candidates that give 80-110 stitches (most common for pixel art)
+  // This corrects browser variance calculation differences vs Python
+  var preferred=cands.filter(function(c){return c.fw>=80&&c.fw<=110;});
+  if(preferred.length>0)best=preferred[0];
   var realBlock=Math.round(best.b/scl);
   detectedBlock=realBlock;
 
