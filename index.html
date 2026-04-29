@@ -152,6 +152,11 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
       <button class="btn" style="flex:1;padding:4px" onclick="setSize(80,80)">80²</button>
     </div>
     <button class="btn primary" onclick="autoSize()">🎯 Auto ขนาด</button>
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+      <label style="font-size:10px;color:var(--muted);white-space:nowrap">Block px:</label>
+      <input type="number" id="manualBlock" min="1" max="100" placeholder="เช่น 10" style="width:60px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;font-size:11px;background:var(--bg);color:var(--text)">
+      <button class="btn" style="flex:1;padding:3px 6px;font-size:10px" onclick="applyManualBlock()">Apply</button>
+    </div>
     <div class="hint" id="size-hint"></div>
   </div>
 
@@ -176,8 +181,7 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
       <option value="black">⬛ ดำ</option>
       <option value="none">✕ ไม่ลบ</option>
     </select>
-    <div class="cb"><input type="checkbox" id="chkNoise" checked><label for="chkNoise">กรอง noise รอบนอก</label></div>
-    <div class="cb"><input type="checkbox" id="chkKeepAll"><label for="chkKeepAll">เก็บ sparkle รอบนอก</label></div>
+    <div class="cb"><input type="checkbox" id="chkNoise"><label for="chkNoise">กรอง noise รอบนอก (เฉพาะภาพที่ไม่มี decoration)</label></div>
     <div class="cb"><input type="checkbox" id="chkGrid" checked onchange="render()"><label for="chkGrid">แสดง grid</label></div>
     <div class="cb"><input type="checkbox" id="chkSym" checked onchange="render()"><label for="chkSym">แสดง symbol</label></div>
   </div>
@@ -581,81 +585,116 @@ function setNC(n){document.getElementById('sNC').value=n;document.getElementById
 function autoSize(){
   if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
   var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
+  // Draw at native (cap 1200px)
   var cap=1200,scl=Math.min(1,cap/Math.max(sw,sh));
   var W=Math.round(sw*scl),H=Math.round(sh*scl);
   var sc=document.createElement('canvas');sc.width=W;sc.height=H;
   var sx=sc.getContext('2d');
-  // Detect bg color from corner
+  // Detect bg from corner
   sx.drawImage(imgSrc,0,0,W,H);
-  var corner=sx.getImageData(0,0,4,4).data;
-  var cLum=0.299*corner[0]+0.587*corner[1]+0.114*corner[2];
+  var cpx=sx.getImageData(0,0,4,4).data;
+  var cLum=0.299*cpx[0]+0.587*cpx[1]+0.114*cpx[2];
   var isDark=cLum<40;
   sx.fillStyle=isDark?'#000':'#fff';sx.fillRect(0,0,W,H);sx.drawImage(imgSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
-  // Find content bounding box
+
+  // ── STEP 1: Find content bounding box (exclude bg) ──
   var x0=W,y0=H,x1=0,y1=0;
-  for(var y=0;y<H;y++)for(var x=0;x<W;x++){
-    var i=(y*W+x)*4,lm=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
-    var isBg=isDark?(lm<25):(lm>230);
+  for(var y=0;y<H;y++) for(var x=0;x<W;x++){
+    var i=(y*W+x)*4;
+    var lm=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+    var st=Math.max(px[i],px[i+1],px[i+2])-Math.min(px[i],px[i+1],px[i+2]);
+    var isBg=isDark?(lm<25&&st<20):(lm>230&&st<25);
     if(!isBg){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
   }
   if(x1<=x0){x0=0;y0=0;x1=W;y1=H;}
   var cW=x1-x0,cH=y1-y0;
-  // Variance method on content region
-  var scores=[],maxB=Math.min(100,Math.floor(Math.min(cW,cH)/6));
-  for(var b=8;b<=maxB;b++){
+
+  // ── STEP 2: Variance on content region only ──
+  var scores=[];
+  var maxB=Math.min(100,Math.floor(Math.min(cW,cH)/6));
+  for(var b=5;b<=maxB;b++){
     var cols=Math.floor(cW/b),rows=Math.floor(cH/b);
+    if(cols<4||rows<4)break;
     var tv=0,cnt=0;
-    for(var r=0;r<rows;r+=3)for(var c=0;c<cols;c+=3){
+    for(var r=0;r<rows;r+=2) for(var c=0;c<cols;c+=2){
       var gx=x0+c*b,gy=y0+r*b;
-      var sr=0,sg=0,sb=0,sqr=0,sqg=0,sqb=0,n=0;
-      for(var dy=0;dy<b;dy++)for(var dx=0;dx<b;dx++){
+      var sr=0,sg=0,sb=0,qr=0,qg=0,qb=0,n=0;
+      for(var dy=0;dy<b;dy++) for(var dx=0;dx<b;dx++){
         var idx2=((gy+dy)*W+(gx+dx))*4;
         var rv=px[idx2],gv=px[idx2+1],bv=px[idx2+2];
-        sr+=rv;sg+=gv;sb+=bv;sqr+=rv*rv;sqg+=gv*gv;sqb+=bv*bv;n++;
+        sr+=rv;sg+=gv;sb+=bv;qr+=rv*rv;qg+=gv*gv;qb+=bv*bv;n++;
       }
-      tv+=((sqr/n-(sr/n)*(sr/n))+(sqg/n-(sg/n)*(sg/n))+(sqb/n-(sb/n)*(sb/n)))/3;cnt++;
+      tv+=((qr/n-(sr/n)*(sr/n))+(qg/n-(sg/n)*(sg/n))+(qb/n-(sb/n)*(sb/n)))/3;cnt++;
     }
-    scores.push({b:b,v:cnt>0?tv/cnt:9999,sw:Math.round(cW/b),sh:Math.round(cH/b)});
+    // Use FULL image dims for stitch count (not cropped)
+    var fullW=Math.round(sw/(b/scl)),fullH=Math.round(sh/(b/scl));
+    // Also compute cropped count as alternative
+    var cropW=Math.round(cW/b),cropH=Math.round(cH/b);
+    scores.push({b:b,v:cnt>0?tv/cnt:9999,fw:fullW,fh:fullH,cw:cropW,ch:cropH});
   }
-  // Find local minima (skip >120 stitches with var>3)
+
+  // ── STEP 3: Find local minima ──
   var cands=[];
   for(var i=2;i<scores.length-2;i++){
     var cur=scores[i];
-    if(cur.sw>120&&cur.v>3)continue;
-    if(cur.sw<10||cur.sw>150)continue;
+    // Skip if crop result >120 stitches with high variance (JPEG noise)
+    if(cur.cw>120&&cur.v>50)continue;
+    if(cur.cw<6||cur.cw>200)continue;
     var isMin=true;
-    for(var di=-2;di<=2;di++){if(di===0)continue;var ni=i+di;if(ni<0||ni>=scores.length)continue;if(scores[ni].v<cur.v*.92){isMin=false;break;}}
+    for(var di=-2;di<=2;di++){
+      if(di===0)continue;var ni=i+di;
+      if(ni<0||ni>=scores.length)continue;
+      if(scores[ni].v<cur.v*0.90){isMin=false;break;}
+    }
     if(isMin)cands.push(cur);
   }
   cands.sort(function(a,b){return a.v-b.v;});
+
   var hint=document.getElementById('size-hint');
   if(!cands.length){
     var base=Math.max(sw,sh)>1000?60:40;
-    setSize(base,Math.round(base*sh/sw));
+    applySz(base,Math.round(base*sh/sw),0);
     hint.textContent='🖼 Flat art → '+base+'×'+Math.round(base*sh/sw);hint.style.display='block';
     detectedBlock=0;return;
   }
+
   var best=cands[0];
-  detectedBlock=Math.round(best.b/scl);
-  // Snap W and H to same value if within 5% of each other (square pixel art)
-  var sw2=best.sw, sh2=best.sh;
-  if(Math.abs(sw2-sh2)/(Math.max(sw2,sh2)||1)<0.06){var avg=Math.round((sw2+sh2)/2);sw2=avg;sh2=avg;}
-  // Apply and reset grid
-  COLS=sw2;ROWS=sh2;
-  document.getElementById('sW').value=COLS;document.getElementById('vW').textContent=COLS;
-  document.getElementById('sH').value=ROWS;document.getElementById('vH').textContent=ROWS;
-  document.getElementById('lockAR').checked=false;
-  grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
-  palette=[];SI=0;hist=[];dmcCache={};updPal();updStatus();fitZoom();
-  var msg='🎮 block≈'+detectedBlock+'px → <b>'+COLS+'×'+ROWS+'</b>';
-  if(cands.length>1){
-    msg+=' &nbsp;';
-    cands.slice(1,4).forEach(function(cd,ci){
-      msg+='<span style="cursor:pointer;text-decoration:underline;color:var(--gold)" onclick="applySz('+cd.sw+','+cd.sh+','+Math.round(cd.b/scl)+')">'+cd.sw+'×'+cd.sh+'</span> ';
-    });
-  }
+  var realBlock=Math.round(best.b/scl);
+  detectedBlock=realBlock;
+
+  // Offer both full-image and cropped sizes
+  var fw=best.fw,fh=best.fh,cw2=best.cw,ch2=best.ch;
+  // Snap to square if close
+  function snapSq(w,h){if(Math.abs(w-h)/Math.max(w,h)<0.07){var a=Math.round((w+h)/2);return[a,a];}return[w,h];}
+  var fSnap=snapSq(fw,fh),cSnap=snapSq(cw2,ch2);
+  fw=Math.max(10,Math.min(150,fSnap[0]));fh=Math.max(10,Math.min(150,fSnap[1]));
+  cw2=Math.max(10,Math.min(150,cSnap[0]));ch2=Math.max(10,Math.min(150,cSnap[1]));
+
+  // Apply full image size (รวมทุกส่วนของภาพ)
+  applySz(fw,fh,realBlock);
+
+  var msg='🎮 block≈'+realBlock+'px → <b>'+fw+'×'+fh+'</b>';
+  // Other size options
+  cands.slice(1,3).forEach(function(cd){
+    var rb=Math.round(cd.b/scl),fs=snapSq(cd.fw,cd.fh);
+    var fw2=Math.max(10,Math.min(150,fs[0])),fh2=Math.max(10,Math.min(150,fs[1]));
+    msg+=' <span style="cursor:pointer;text-decoration:underline;color:var(--muted)" onclick="applySz('+fw2+','+fh2+','+rb+')">'+fw2+'×'+fh2+'</span>';
+  });
   hint.innerHTML=msg;hint.style.display='block';
+}
+function applyManualBlock(){
+  if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
+  var blk=parseInt(document.getElementById('manualBlock').value)||0;
+  if(blk<1||blk>500){alert('ใส่ block size เป็น pixel เช่น 10');return;}
+  var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
+  var w=Math.round(sw/blk),h=Math.round(sh/blk);
+  w=Math.max(10,Math.min(150,w));h=Math.max(10,Math.min(150,h));
+  if(Math.abs(w-h)/Math.max(w,h)<0.06){var avg=Math.round((w+h)/2);w=avg;h=avg;}
+  detectedBlock=blk;
+  var hint=document.getElementById('size-hint');
+  hint.innerHTML='📐 block='+blk+'px → <b>'+w+'×'+h+'</b> stitches';hint.style.display='block';
+  applySz(w,h,blk);
 }
 function applySz(w,h,blk){
   detectedBlock=blk;COLS=w;ROWS=h;
@@ -856,7 +895,7 @@ function doConvert(){
       }
       pf.style.width='88%';pt.textContent='Noise filter...';
       // Noise filter
-      if(chkNoise&&!keepAll){
+      if(chkNoise){
         var mb=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
         var sx2=Math.floor(COLS/2),sy2=Math.floor(ROWS/2),sd=1e9,sr2=-1,sc2=-1;
         for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){if(grid[r][c]>=0){var d2=(r-sy2)*(r-sy2)+(c-sx2)*(c-sx2);if(d2<sd){sd=d2;sr2=r;sc2=c;}}}
