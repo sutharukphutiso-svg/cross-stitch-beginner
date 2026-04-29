@@ -713,7 +713,7 @@ function matchRatio(){
 // Store detected pixel art block size for use in doConvert
 var detectedBlockSize=0;
 
-// ── AUTO SIZE: Variance method — แม่นที่สุดสำหรับ pixel art ────────
+// ── AUTO SIZE: Multi-candidate variance method ───────────────────
 function autoSize(){
   if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
   var hint=document.getElementById('auto-size-hint');
@@ -728,77 +728,92 @@ function autoSize(){
   sx.drawImage(refSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
 
-  // ── Variance Method ──────────────────────────────────────────────
-  // For each candidate block size b, divide image into b×b blocks
-  // and measure average color variance within each block.
-  // True pixel art block size → variance is MINIMUM (each block = 1 solid color)
-  var bestB=1, bestVar=1e18;
+  // ── Variance score per block size ────────────────────────────────
   var varScores=[];
-
-  for(var b=3;b<=Math.min(60,Math.floor(Math.min(W,H)/8));b++){
+  var maxB=Math.min(80, Math.floor(Math.min(W,H)/6));
+  for(var b=3;b<=maxB;b++){
     var totalVar=0, count=0;
     var cols=Math.floor(W/b), rows=Math.floor(H/b);
-    // Sample every 3rd block for speed
-    for(var r=0;r<rows;r+=2){
-      for(var c=0;c<cols;c+=2){
+    for(var r=0;r<rows;r+=3){
+      for(var c=0;c<cols;c+=3){
         var x0=c*b,y0=r*b;
-        var sumR=0,sumG=0,sumB=0,n=0;
-        var sq2R=0,sq2G=0,sq2B=0;
+        var sumR=0,sumG=0,sumB=0,sq2R=0,sq2G=0,sq2B=0,n=0;
         for(var dy=0;dy<b;dy++){
           for(var dx=0;dx<b;dx++){
             var idx=((y0+dy)*W+(x0+dx))*4;
             var rv=px[idx],gv=px[idx+1],bv=px[idx+2];
             sumR+=rv;sumG+=gv;sumB+=bv;
-            sq2R+=rv*rv;sq2G+=gv*gv;sq2B+=bv*bv;
-            n++;
+            sq2R+=rv*rv;sq2G+=gv*gv;sq2B+=bv*bv;n++;
           }
         }
-        var varR=sq2R/n-(sumR/n)*(sumR/n);
-        var varG=sq2G/n-(sumG/n)*(sumG/n);
-        var varB=sq2B/n-(sumB/n)*(sumB/n);
-        totalVar+=(varR+varG+varB)/3;
+        totalVar+=((sq2R/n-(sumR/n)*(sumR/n))+(sq2G/n-(sumG/n)*(sumG/n))+(sq2B/n-(sumB/n)*(sumB/n)))/3;
         count++;
       }
     }
-    var avgVar=count>0?totalVar/count:9999;
-    varScores.push([b, avgVar]);
-    if(avgVar<bestVar){bestVar=avgVar;bestB=b;}
+    varScores.push({b:b, v:count>0?totalVar/count:9999});
   }
 
-  // Require variance to be significantly lower than neighbors
-  // (true pixel art has a clear minimum, not just noise)
-  var isPixelArt=false;
-  for(var vi=1;vi<varScores.length-1;vi++){
-    if(varScores[vi][0]===bestB){
-      var prevV=varScores[vi-1][1], nextV=varScores[vi+1][1];
-      // Must be at least 30% lower than both neighbors
-      if(bestVar < prevV*0.7 && bestVar < nextV*0.7) isPixelArt=true;
-      // Or simply very low absolute variance (very uniform blocks)
-      if(bestVar < 5) isPixelArt=true;
-      break;
+  // ── Find LOCAL MINIMA in variance curve ──────────────────────────
+  // A true pixel art block size creates a sharp dip in the variance curve
+  // Filter: only keep b values where b ≥ 5 (avoid JPEG artifact noise)
+  // and result stitches is 20–150
+  var candidates=[];
+  for(var i=2;i<varScores.length-2;i++){
+    var cur=varScores[i];
+    if(cur.b<5)continue;  // skip tiny blocks (JPEG noise)
+    var realB=cur.b/scl;
+    var sW=Math.round(sw/realB), sH=Math.round(sh/realB);
+    if(sW<15||sW>150)continue;
+
+    // Is it a local minimum? (lower than both ±2 neighbors)
+    var isMin=true;
+    for(var di=-2;di<=2;di++){
+      if(di===0)continue;
+      var ni=i+di;
+      if(ni<0||ni>=varScores.length)continue;
+      if(varScores[ni].v < cur.v*0.95){isMin=false;break;}
+    }
+    if(isMin){
+      candidates.push({b:cur.b, realB:realB, v:cur.v, sW:sW, sH:sH});
     }
   }
 
-  // Convert block size from scaled coords back to native
-  var realBlock=bestB/scl;
-  var stitchW=Math.round(sw/realBlock);
-  var stitchH=Math.round(sh/realBlock);
+  // Sort by variance (lowest first = most uniform = most likely correct)
+  candidates.sort(function(a,b){return a.v-b.v;});
 
-  if(!isPixelArt || stitchW<8 || stitchW>200){
+  // Fallback if no clear minimum
+  if(!candidates.length){
     detectedBlockSize=0;
     var base=Math.max(sw,sh)>1500?80:Math.max(sw,sh)>600?60:40;
-    stitchW=base; stitchH=Math.round(base*sh/sw);
-    _applySize(Math.max(10,Math.min(150,stitchW)),
-               Math.max(10,Math.min(150,stitchH)), false, 0, hint);
+    _applySize(base,Math.round(base*sh/sw),false,0,hint);
     return;
   }
 
-  stitchW=Math.max(10,Math.min(150,stitchW));
-  stitchH=Math.max(10,Math.min(150,stitchH));
-  detectedBlockSize=Math.round(realBlock);
-  _applySize(stitchW, stitchH, true, Math.round(realBlock), hint);
+  // Apply best candidate
+  var best=candidates[0];
+  window._autoCandidates=candidates;
+  detectedBlockSize=Math.round(best.realB);
+  _applySize(best.sW, best.sH, true, Math.round(best.realB), hint);
+
+  // Show top 3 alternatives as buttons
+  var altHtml='🎮 block≈'+Math.round(best.realB)+'px → <b>'+best.sW+'×'+best.sH+'</b> stitches';
+  if(candidates.length>1){
+    altHtml+='<br><span style="opacity:.7;font-size:9px">ตัวเลือกอื่น: ';
+    candidates.slice(1,4).forEach(function(cd,ci){
+      altHtml+=' &nbsp;<b style="cursor:pointer;color:var(--gold-lt)" onclick="applyCandidate('+(1+ci)+')">'+cd.sW+'x'+cd.sH+'</b>';
+    });
+    altHtml+='</span>';
+  }
+  hint.innerHTML=altHtml;
+  hint.style.display='block';
 }
 
+function applyCandidate(idx){
+  if(!window._autoCandidates||idx>=window._autoCandidates.length)return;
+  var cd=window._autoCandidates[idx];
+  detectedBlockSize=Math.round(cd.realB);
+  _applySize(cd.sW,cd.sH,true,Math.round(cd.realB),document.getElementById('auto-size-hint'));
+}
 function _applySize(tw,th,isPixelArt,blockPx,hint){
   document.getElementById('sW').value=tw;document.getElementById('vW').textContent=tw;
   document.getElementById('sH').value=th;document.getElementById('vH').textContent=th;
