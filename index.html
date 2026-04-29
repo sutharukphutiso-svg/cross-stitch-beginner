@@ -731,7 +731,7 @@ function autoSize(){
   // ── Variance score per block size ────────────────────────────────
   var varScores=[];
   var maxB=Math.min(80, Math.floor(Math.min(W,H)/6));
-  for(var b=3;b<=maxB;b++){
+  for(var b=8;b<=maxB;b++){   // start at 8 — skip JPEG compression artifact range
     var totalVar=0, count=0;
     var cols=Math.floor(W/b), rows=Math.floor(H/b);
     for(var r=0;r<rows;r+=3){
@@ -771,9 +771,12 @@ function autoSize(){
       if(di===0)continue;
       var ni=i+di;
       if(ni<0||ni>=varScores.length)continue;
-      if(varScores[ni].v < cur.v*0.95){isMin=false;break;}
+      if(varScores[ni].v < cur.v*0.92){isMin=false;break;}
     }
-    if(isMin){
+    // Penalize: if result > 120 stitches, variance must be VERY low (< 3)
+    // to avoid JPEG noise false-positives at small block sizes
+    var tooMany = (sW > 120 && cur.v > 3);
+    if(isMin && !tooMany){
       candidates.push({b:cur.b, realB:realB, v:cur.v, sW:sW, sH:sH});
     }
   }
