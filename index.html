@@ -662,14 +662,24 @@ function updDMC(){
   var el=document.getElementById('dlist');
   if(!used.length){el.innerHTML='<div style="color:var(--muted);font-size:11px;padding:4px">ยังไม่มีสี</div>';return;}
   el.innerHTML='';
-  used.forEach(function(x,idx){
+  // Deduplicate DMC numbers in display (merge stitch counts)
+  var dmcSeen={};
+  used.forEach(function(x){
     var d=nearDMC(x.h);
+    var key='DMC'+d.num;
+    if(dmcSeen[key]){dmcSeen[key].n+=x.n;return;}
     var row=document.createElement('div');
     row.className='di';
     row.innerHTML='<div class="dd" style="background:'+d.hex+'"></div>'
       +'<div><div class="dn">DMC '+d.num+'</div><div class="dna">'+d.name.substring(0,20)+'</div></div>'
-      +'<div class="dc">'+x.n+'</div>';
+      +'<div class="dc" id="dmc-cnt-'+d.num+'">'+x.n+'</div>';
+    dmcSeen[key]={el:row,cnt:document.createElement('div'),n:x.n,num:d.num};
     el.appendChild(row);
+  });
+  // Update merged counts
+  Object.values(dmcSeen).forEach(function(v){
+    var cntEl=el.querySelector('#dmc-cnt-'+v.num);
+    if(cntEl)cntEl.textContent=v.n;
   });
 }
 
@@ -1265,6 +1275,20 @@ function doConvert(){
         // Pass B: erase cells NOT in main body (isolated specks)
         for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
           if(grid[r][c]>=0&&!mainBody[r][c])grid[r][c]=-1;
+        }
+
+        // Pass B2: remove color groups with < 5 connected blocks (tiny isolated regions)
+        // This removes sparkle dots that are connected diagonally
+        var colorUsed=new Array(palette.length).fill(0);
+        for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)
+          if(grid[r][c]>=0)colorUsed[grid[r][c]]++;
+        // For each rare color (< 5 uses), check if all its pixels are disconnected
+        for(var ci3=0;ci3<palette.length;ci3++){
+          if(colorUsed[ci3]<5){
+            // Mark this color's pixels as bg
+            for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)
+              if(grid[r][c]===ci3)grid[r][c]=-1;
+          }
         }
 
         // Pass C: smooth isolated single pixels inside main body
