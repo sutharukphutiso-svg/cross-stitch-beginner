@@ -586,50 +586,101 @@ function autoSize(){
   if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
   var hint=document.getElementById('size-hint');
   var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
-  hint.innerHTML='⏳ กำลังวิเคราะห์...';hint.style.display='block';
 
-  // Convert image to base64 (small size for API)
-  var sc=document.createElement('canvas');
-  var maxSz=400,s=Math.min(1,maxSz/Math.max(sw,sh));
-  sc.width=Math.round(sw*s);sc.height=Math.round(sh*s);
+  // Draw small version for analysis
+  var cap=1400,scl=Math.min(1,cap/Math.max(sw,sh));
+  var W=Math.round(sw*scl),H=Math.round(sh*scl);
+  var sc=document.createElement('canvas');sc.width=W;sc.height=H;
   var sx=sc.getContext('2d');
   sx.imageSmoothingEnabled=false;
-  sx.drawImage(imgSrc,0,0,sc.width,sc.height);
-  var b64=sc.toDataURL('image/jpeg',0.85).split(',')[1];
+  sx.fillStyle='#fff';sx.fillRect(0,0,W,H);
+  sx.drawImage(imgSrc,0,0,W,H);
+  var px=sx.getImageData(0,0,W,H).data;
 
-  // Ask Claude API to identify block size
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:100,
-      messages:[{
-        role:'user',
-        content:[
-          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
-          {type:'text',text:'This is a pixel art image '+sw+'×'+sh+' pixels. What is the block size in pixels (how many pixels per pixel art square)? Reply with ONLY a single integer number, nothing else.'}
-        ]
-      }]
-    })
-  })
-  .then(function(r){return r.json();})
-  .then(function(data){
-    var txt=data.content&&data.content[0]&&data.content[0].text;
-    var blockPx=parseInt(txt);
-    if(isNaN(blockPx)||blockPx<1||blockPx>200){
-      hint.innerHTML='❌ วิเคราะห์ไม่ได้ — ลองใส่ Block px เองค่ะ';return;
+  // Autocorrelation of horizontal gradient
+  var y0=Math.floor(H*0.15),y1=Math.floor(H*0.85);
+  var grad=new Float32Array(W);
+  var n=0;
+  for(var y=y0;y<y1;y+=1){
+    for(var x=1;x<W;x++){
+      var i=(y*W+x)*4,j=i-4;
+      grad[x]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
     }
-    var fw=Math.max(10,Math.min(150,Math.round(sw/blockPx)));
-    var fh=Math.max(10,Math.min(150,Math.round(sh/blockPx)));
-    if(Math.abs(fw-fh)/Math.max(fw,fh)<0.07){var avg=Math.round((fw+fh)/2);fw=avg;fh=avg;}
-    detectedBlock=blockPx;
-    applySz(fw,fh,blockPx);
-    hint.innerHTML='🎮 block='+blockPx+'px → <b>'+fw+'×'+fh+'</b>';
-  })
-  .catch(function(e){
-    hint.innerHTML='❌ Error: '+e.message;
-  });
+    n++;
+  }
+  var mean=0;
+  for(var x=0;x<W;x++){grad[x]/=Math.max(1,n);mean+=grad[x];}
+  mean/=W;
+  for(var x=0;x<W;x++)grad[x]-=mean;
+
+  // Also vertical
+  var x0=Math.floor(W*0.15),x1=Math.floor(W*0.85);
+  var grady=new Float32Array(H);
+  var ny=0;
+  for(var x=x0;x<x1;x+=1){
+    for(var y=1;y<H;y++){
+      var i=(y*W+x)*4,j=i-W*4;
+      grady[y]+=(Math.abs(px[i]-px[j])+Math.abs(px[i+1]-px[j+1])+Math.abs(px[i+2]-px[j+2]))/3;
+    }
+    ny++;
+  }
+  var meany=0;
+  for(var y=0;y<H;y++){grady[y]/=Math.max(1,ny);meany+=grady[y];}
+  meany/=H;
+  for(var y=0;y<H;y++)grady[y]-=meany;
+
+  // Variance for normalization
+  var varH=0,varV=0;
+  for(var x=0;x<W;x++)varH+=grad[x]*grad[x];
+  for(var y=0;y<H;y++)varV+=grady[y]*grady[y];
+
+  // Compute ACF at each lag, pick best in fw=20..120 range
+  var bestLag=10,bestScore=-999,results=[];
+  for(var lag=3;lag<=Math.min(100,Math.floor(W/4));lag++){
+    var fw=Math.round(sw/(lag/scl));
+    if(fw<10||fw>200)continue;
+    var acfH=0;
+    for(var x=0;x+lag<W;x++)acfH+=grad[x]*grad[x+lag];
+    acfH=varH>0?acfH/varH:0;
+    var acfV=0;
+    for(var y=0;y+lag<H;y++)acfV+=grady[y]*grady[y+lag];
+    acfV=varV>0?acfV/varV:0;
+    var score=(acfH+acfV)/2;
+    results.push({lag:lag,score:score,fw:fw});
+  }
+
+  // Pick best within fw 20-120
+  var inRange=results.filter(function(r){return r.fw>=20&&r.fw<=120;});
+  var pool=inRange.length?inRange:results;
+  pool.sort(function(a,b){return b.score-a.score;});
+
+  if(!pool.length||pool[0].score<0.05){
+    // Fallback: use image dimensions to guess
+    var base=sw>1000?80:sw>500?60:40;
+    var fbase=Math.round(base*sh/sw);
+    applySz(base,fbase,0);
+    hint.innerHTML='🖼 Flat art → '+base+'×'+fbase;hint.style.display='block';
+    return;
+  }
+
+  var best=pool[0];
+  var realBlock=Math.round(best.lag/scl);
+  var fw=Math.max(10,Math.min(150,Math.round(sw/realBlock)));
+  var fh=Math.max(10,Math.min(150,Math.round(sh/realBlock)));
+  // Snap to square if close
+  if(Math.abs(fw-fh)/Math.max(fw,fh)<0.07){var avg=Math.round((fw+fh)/2);fw=avg;fh=avg;}
+  detectedBlock=realBlock;
+  applySz(fw,fh,realBlock);
+
+  var msg='🎮 block='+realBlock+'px → <b>'+fw+'×'+fh+'</b>';
+  if(pool.length>1){
+    pool.slice(1,3).forEach(function(r){
+      var rb=Math.round(r.lag/scl);
+      var fw2=Math.max(10,Math.min(150,Math.round(sw/rb)));
+      msg+=' <span style="cursor:pointer;text-decoration:underline;color:var(--muted)" onclick="applySz('+fw2+','+fw2+','+rb+')">'+fw2+'×'+fw2+'</span>';
+    });
+  }
+  hint.innerHTML=msg;hint.style.display='block';
 }
 
 
