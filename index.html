@@ -227,7 +227,12 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
           </select>
         </div>
         <div class="cb-row" style="margin-top:6px"><input type="checkbox" id="chkOutline" checked><label for="chkOutline">ตรวจจับเส้นขอบ (outline)</label></div>
-        <div class="cb-row"><input type="checkbox" id="chkBg" checked><label for="chkBg">ลบพื้นหลังสีขาว/โปร่งใส</label></div>
+        <div class="cl" style="margin-bottom:3px"><span style="color:var(--muted);font-size:11px">ลบพื้นหลัง</span></div>
+        <select id="bgMode" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:11px;font-family:inherit;margin-bottom:4px">
+          <option value="white">⬜ ขาว / โปร่งใส (PNG)</option>
+          <option value="black">⬛ ดำ</option>
+          <option value="none">✕ ไม่ลบ</option>
+        </select>
         <div class="cb-row" style="margin-top:4px"><input type="checkbox" id="chkNoise" checked><label for="chkNoise">กรอง Noise รอบนอก</label></div>
         <div class="cb-row"><input type="checkbox" id="chkHSL" checked><label for="chkHSL">ใช้ HSL distance (แยกสีดีขึ้น)</label></div>
       </div>
@@ -977,7 +982,9 @@ function doConvert(){
   var newCOLS=+document.getElementById('sW').value;
   var newROWS=+document.getElementById('sH').value;
   var maxNC=+document.getElementById('sNC').value;
-  var chkBg=document.getElementById('chkBg').checked;
+  var bgModeEl=document.getElementById('bgMode');
+      var bgModeVal=bgModeEl?bgModeEl.value:'white';
+      var chkBg=(bgModeVal!=='none');
   var chkOutline=document.getElementById('chkOutline').checked;
   var qmode=document.getElementById('qmode').value;
 
@@ -1077,7 +1084,11 @@ function doConvert(){
           } else if(chkBg){
             var lum=0.299*rW+0.587*gW+0.114*bW;
             var sat=Math.max(rW,gW,bW)-Math.min(rW,gW,bW);
-            if(lum>215&&sat<30)isBg=true;
+            if(bgModeVal==='black'){
+              if(lum<25&&sat<20)isBg=true;
+            } else {
+              if(lum>215&&sat<30)isBg=true;
+            }
           }
 
           pg[r].push([rW,gW,bW]);
@@ -1091,29 +1102,28 @@ function doConvert(){
         var visited2=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
         var newBg=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
         var stk=[];
-        // Seed: edge pixels that are near-white
+        // Seed edge pixels matching bg color
+        function isBgPixel(px2){
+          var lum2=0.299*px2[0]+0.587*px2[1]+0.114*px2[2];
+          var sat2=Math.max(px2[0],px2[1],px2[2])-Math.min(px2[0],px2[1],px2[2]);
+          if(bgModeVal==='black') return lum2<25&&sat2<20;
+          return lum2>215&&sat2<30;
+        }
         for(var ei=0;ei<ROWS;ei++){
           [[ei,0],[ei,COLS-1]].forEach(function(pt){
-            var px2=pg[pt[0]][pt[1]];
-            var lum2=0.299*px2[0]+0.587*px2[1]+0.114*px2[2];
-            if(lum2>225&&!visited2[pt[0]][pt[1]]){visited2[pt[0]][pt[1]]=true;stk.push(pt);}
+            if(isBgPixel(pg[pt[0]][pt[1]])&&!visited2[pt[0]][pt[1]]){visited2[pt[0]][pt[1]]=true;stk.push(pt);}
           });
         }
         for(var ej=0;ej<COLS;ej++){
           [[0,ej],[ROWS-1,ej]].forEach(function(pt){
-            var px2=pg[pt[0]][pt[1]];
-            var lum2=0.299*px2[0]+0.587*px2[1]+0.114*px2[2];
-            if(lum2>225&&!visited2[pt[0]][pt[1]]){visited2[pt[0]][pt[1]]=true;stk.push(pt);}
+            if(isBgPixel(pg[pt[0]][pt[1]])&&!visited2[pt[0]][pt[1]]){visited2[pt[0]][pt[1]]=true;stk.push(pt);}
           });
         }
         while(stk.length){
           var pos2=stk.pop(),pr2=pos2[0],pc2=pos2[1];
           if(pr2<0||pr2>=ROWS||pc2<0||pc2>=COLS||newBg[pr2][pc2])continue;
           var px3=pg[pr2][pc2];
-          var lum3=0.299*px3[0]+0.587*px3[1]+0.114*px3[2];
-          var sat3=Math.max(px3[0],px3[1],px3[2])-Math.min(px3[0],px3[1],px3[2]);
-          // Only flood through light, low-saturation pixels
-          if(lum3<210||sat3>35)continue;
+          if(!isBgPixel(px3))continue;
           newBg[pr2][pc2]=true;
           [[pr2-1,pc2],[pr2+1,pc2],[pr2,pc2-1],[pr2,pc2+1]].forEach(function(n){
             if(n[0]>=0&&n[0]<ROWS&&n[1]>=0&&n[1]<COLS&&!visited2[n[0]][n[1]]){
