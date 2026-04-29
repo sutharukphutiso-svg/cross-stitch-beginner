@@ -759,9 +759,16 @@ function autoColors(){
     for(var m=0;m<merged.length;m++){var d=colorDist(r2,g2,b2,merged[m][0],merged[m][1],merged[m][2]);if(d<45*45*3){found=true;break;}}
     if(!found)merged.push([r2,g2,b2]);
   });
-  var n2=Math.min(35,Math.max(4,merged.length));
+  // Map to DMC and count unique DMC numbers (more accurate than RGB merge)
+  var dmcSet={};
+  merged.forEach(function(col){
+    var d=nearDMC(r2h(col[0],col[1],col[2]));
+    dmcSet[d.num]=true;
+  });
+  var dmcCount=Object.keys(dmcSet).length;
+  var n2=Math.min(35,Math.max(4,dmcCount));
   setNC(n2);
-  var h=document.getElementById('color-hint');h.textContent='🎨 ตรวจพบ '+merged.length+' สี → ตั้ง '+n2+' สี';h.style.display='block';
+  var h=document.getElementById('color-hint');h.innerHTML='🎨 ตรวจพบ <b>'+dmcCount+' DMC</b> สี → ตั้ง '+n2+' สี';h.style.display='block';
 }
 
 // ═══════════════ MAIN CONVERT ═══════════════
@@ -879,11 +886,15 @@ function doConvert(){
           if(!dmcGroups[d.num]){dmcGroups[d.num]={hex:d.hex,n:0};}
           dmcGroups[d.num].n+=e[1];
         });
-        // Sort by frequency, take top maxNC, use DMC's actual RGB
+        // Sort by frequency — for pixel art, include ALL DMC colors found
+        // (rare colors like pink paw pads must not be cut off)
+        var totalFg=fg.length||1;
         centers=Object.values(dmcGroups)
           .sort(function(a,b){return b.n-a.n;})
-          .slice(0,maxNC)
+          .filter(function(g){return g.n/totalFg>0.0005;}) // keep if > 0.05% of fg
           .map(function(g){return h2r(g.hex)||[128,128,128];});
+        // If still too many, apply maxNC cap
+        if(centers.length>maxNC*2)centers=centers.slice(0,maxNC*2);
       } else {
         centers=kMeans(fg,maxNC);
       }
