@@ -585,17 +585,23 @@ function setNC(n){document.getElementById('sNC').value=n;document.getElementById
 function autoSize(){
   if(!imgSrc){alert('อัปโหลดภาพก่อนค่ะ');return;}
   var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
-  // Draw at native (cap 1200px)
-  var cap=1200,scl=Math.min(1,cap/Math.max(sw,sh));
+  // Draw at NATIVE size (no scaling = no bilinear blur = accurate variance)
+  var cap=1400;
+  var scl=Math.min(1,cap/Math.max(sw,sh));
   var W=Math.round(sw*scl),H=Math.round(sh*scl);
-  var sc=document.createElement('canvas');sc.width=W;sc.height=H;
+  // Use offscreen canvas with explicit imageSmoothingEnabled=false for accuracy
+  var sc=document.createElement('canvas');
+  sc.width=W;sc.height=H;
   var sx=sc.getContext('2d');
+  sx.imageSmoothingEnabled=false;
   // Detect bg from corner
   sx.drawImage(imgSrc,0,0,W,H);
   var cpx=sx.getImageData(0,0,4,4).data;
   var cLum=0.299*cpx[0]+0.587*cpx[1]+0.114*cpx[2];
   var isDark=cLum<40;
-  sx.fillStyle=isDark?'#000':'#fff';sx.fillRect(0,0,W,H);sx.drawImage(imgSrc,0,0,W,H);
+  sx.fillStyle=isDark?'#000':'#fff';sx.fillRect(0,0,W,H);
+  sx.imageSmoothingEnabled=false;
+  sx.drawImage(imgSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
 
   // ── STEP 1: Find content bounding box (exclude bg) ──
@@ -650,7 +656,13 @@ function autoSize(){
     }
     if(isMin)cands.push(cur);
   }
-  cands.sort(function(a,b){return a.v-b.v;});
+  // Sort: prefer reasonable stitch counts (40-120) first, then by variance
+  cands.sort(function(a,b){
+    var aOk=(a.fw>=40&&a.fw<=120)?0:1;
+    var bOk=(b.fw>=40&&b.fw<=120)?0:1;
+    if(aOk!==bOk)return aOk-bOk;
+    return a.v-b.v;
+  });
 
   var hint=document.getElementById('size-hint');
   if(!cands.length){
@@ -759,16 +771,9 @@ function autoColors(){
     for(var m=0;m<merged.length;m++){var d=colorDist(r2,g2,b2,merged[m][0],merged[m][1],merged[m][2]);if(d<45*45*3){found=true;break;}}
     if(!found)merged.push([r2,g2,b2]);
   });
-  // Map to DMC and count unique DMC numbers (more accurate than RGB merge)
-  var dmcSet={};
-  merged.forEach(function(col){
-    var d=nearDMC(r2h(col[0],col[1],col[2]));
-    dmcSet[d.num]=true;
-  });
-  var dmcCount=Object.keys(dmcSet).length;
-  var n2=Math.min(35,Math.max(4,dmcCount));
+  var n2=Math.min(35,Math.max(4,merged.length));
   setNC(n2);
-  var h=document.getElementById('color-hint');h.innerHTML='🎨 ตรวจพบ <b>'+dmcCount+' DMC</b> สี → ตั้ง '+n2+' สี';h.style.display='block';
+  var h=document.getElementById('color-hint');h.textContent='🎨 ตรวจพบ '+merged.length+' สี → ตั้ง '+n2+' สี';h.style.display='block';
 }
 
 // ═══════════════ MAIN CONVERT ═══════════════
@@ -886,15 +891,11 @@ function doConvert(){
           if(!dmcGroups[d.num]){dmcGroups[d.num]={hex:d.hex,n:0};}
           dmcGroups[d.num].n+=e[1];
         });
-        // Sort by frequency — for pixel art, include ALL DMC colors found
-        // (rare colors like pink paw pads must not be cut off)
-        var totalFg=fg.length||1;
+        // Sort by frequency, take top maxNC, use DMC's actual RGB
         centers=Object.values(dmcGroups)
           .sort(function(a,b){return b.n-a.n;})
-          .filter(function(g){return g.n/totalFg>0.0005;}) // keep if > 0.05% of fg
+          .slice(0,maxNC)
           .map(function(g){return h2r(g.hex)||[128,128,128];});
-        // If still too many, apply maxNC cap
-        if(centers.length>maxNC*2)centers=centers.slice(0,maxNC*2);
       } else {
         centers=kMeans(fg,maxNC);
       }
