@@ -181,19 +181,24 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
       <div class="sec-b">
         <div class="ctrl">
           <div class="cl"><span>กว้าง (stitches)</span><span class="cv" id="vW">40</span></div>
-          <input type="range" id="sW" min="10" max="120" value="40" step="2" oninput="onW()">
+          <input type="range" id="sW" min="10" max="150" value="40" step="2" oninput="onW()">
         </div>
         <div class="ctrl">
           <div class="cl"><span>สูง (stitches)</span><span class="cv" id="vH">40</span></div>
-          <input type="range" id="sH" min="10" max="120" value="40" step="2" oninput="onH()">
+          <input type="range" id="sH" min="10" max="150" value="40" step="2" oninput="onH()">
         </div>
         <div class="cb-row"><input type="checkbox" id="lock" checked><label for="lock">ล็อกสัดส่วน W=H</label></div>
         <div class="btn-r">
-          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(30,30)">Tiny 30×30</button>
-          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(40,40)">Small 40×40</button>
-          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(60,60)">Med 60×60</button>
+          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(30,30)">30×30</button>
+          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(40,40)">40×40</button>
+          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(60,60)">60×60</button>
+          <button class="btn" style="flex:1;font-size:10px" onclick="setPreset(80,80)">80×80</button>
         </div>
-        <button class="btn" style="width:100%;margin-top:5px;font-size:10px" onclick="matchRatio()">📐 Match image ratio</button>
+        <div class="btn-r" style="margin-top:4px">
+          <button class="btn gd" style="flex:1;font-size:11px;font-weight:600" onclick="autoSize()">🎯 Auto ขนาด</button>
+          <button class="btn" style="flex:1;font-size:10px" onclick="matchRatio()">📐 Match ratio</button>
+        </div>
+        <div id="auto-size-hint" style="display:none;font-size:10px;color:var(--gold);margin-top:4px;line-height:1.5;background:rgba(201,168,76,.08);border-radius:5px;padding:4px 6px"></div>
       </div>
     </div>
 
@@ -203,9 +208,17 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
       <div class="sec-b">
         <div class="ctrl">
           <div class="cl"><span>จำนวนสีสูงสุด</span><span class="cv" id="vNC">10</span></div>
-          <input type="range" id="sNC" min="2" max="30" value="10" step="1" oninput="onNC()">
+          <input type="range" id="sNC" min="2" max="40" value="10" step="1" oninput="onNC()">
         </div>
-        <div class="ctrl" style="margin-top:4px">
+        <div class="btn-r" style="margin-top:2px;margin-bottom:6px">
+          <button class="btn gd" style="flex:1;font-size:11px;font-weight:600" onclick="autoColors()">🎨 Auto สี</button>
+          <button class="btn" style="font-size:10px" onclick="setNC(6)">6</button>
+          <button class="btn" style="font-size:10px" onclick="setNC(10)">10</button>
+          <button class="btn" style="font-size:10px" onclick="setNC(16)">16</button>
+          <button class="btn" style="font-size:10px" onclick="setNC(24)">24</button>
+        </div>
+        <div id="auto-color-hint" style="display:none;font-size:10px;color:var(--gold);margin-bottom:6px;background:rgba(201,168,76,.08);border-radius:5px;padding:4px 6px;line-height:1.5"></div>
+        <div class="ctrl">
           <div class="cl" style="margin-bottom:0"><span>โหมด Quantize</span></div>
           <select id="qmode">
             <option value="kmeans">K-Means (แนะนำ)</option>
@@ -215,6 +228,7 @@ input[type=checkbox]{accent-color:var(--gold);width:12px;height:12px;cursor:poin
         </div>
         <div class="cb-row" style="margin-top:6px"><input type="checkbox" id="chkOutline" checked><label for="chkOutline">ตรวจจับเส้นขอบ (outline)</label></div>
         <div class="cb-row"><input type="checkbox" id="chkBg" checked><label for="chkBg">ลบพื้นหลังสีขาว</label></div>
+        <div class="cb-row"><input type="checkbox" id="chkNoise" checked><label for="chkNoise">กรอง Noise รอบนอก</label></div>
       </div>
     </div>
 
@@ -641,6 +655,10 @@ function onH(){
   }
 }
 function onNC(){document.getElementById('vNC').textContent=document.getElementById('sNC').value;}
+function setNC(n){
+  document.getElementById('sNC').value=n;
+  document.getElementById('vNC').textContent=n;
+}
 function setPreset(w,h){
   document.getElementById('sW').value=w;document.getElementById('vW').textContent=w;
   document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;
@@ -649,9 +667,146 @@ function matchRatio(){
   if(!refSrc)return alert('อัปโหลดภาพก่อนนะคะ');
   var w=+document.getElementById('sW').value;
   var h=Math.round(w*refSrc.naturalHeight/refSrc.naturalWidth);
-  h=Math.max(10,Math.min(120,h));
+  h=Math.max(10,Math.min(150,h));
   document.getElementById('sH').value=h;document.getElementById('vH').textContent=h;
   document.getElementById('lock').checked=false;
+}
+
+// ── AUTO SIZE: วิเคราะห์ pixel art block size ──────────────────────
+function autoSize(){
+  if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
+  var hint=document.getElementById('auto-size-hint');
+
+  // Sample image at native size (up to 400px)
+  var maxSide=400;
+  var sw=refSrc.naturalWidth, sh=refSrc.naturalHeight;
+  var scale=Math.min(1, maxSide/Math.max(sw,sh));
+  var W=Math.round(sw*scale), H=Math.round(sh*scale);
+
+  var sc=document.createElement('canvas');sc.width=W;sc.height=H;
+  var sx=sc.getContext('2d');
+  sx.drawImage(refSrc,0,0,W,H);
+  var px=sx.getImageData(0,0,W,H).data;
+
+  // Detect if image is ALREADY pixel art by measuring avg block size
+  // Method: count horizontal runs of same-ish color
+  var runLengths=[];
+  for(var r=0;r<H;r+=2){
+    var runStart=0, pr=-1,pg=-1,pb=-1;
+    for(var c=0;c<W;c++){
+      var i=(r*W+c)*4;
+      var cr=px[i],cg=px[i+1],cb=px[i+2],ca=px[i+3];
+      if(ca<30){pr=-1;pg=-1;pb=-1;continue;}
+      var diff=Math.abs(cr-pr)+Math.abs(cg-pg)+Math.abs(cb-pb);
+      if(diff>30){
+        if(c-runStart>0)runLengths.push(c-runStart);
+        runStart=c;pr=cr;pg=cg;pb=cb;
+      }
+    }
+  }
+  runLengths.sort(function(a,b){return a-b;});
+  var medRun=runLengths.length>0?runLengths[Math.floor(runLengths.length*0.35)]:1;
+
+  // Estimate pixel block size (GCD-like approach on common run lengths)
+  var blockSize=Math.max(1,Math.round(medRun));
+  // Find most common block size candidate
+  var freq={};
+  runLengths.forEach(function(l){
+    for(var b=1;b<=Math.min(l,20);b++){
+      if(l%b<=1){freq[b]=(freq[b]||0)+1;}
+    }
+  });
+  var bestBlock=1,bestScore=0;
+  for(var b=2;b<=20;b++){
+    var score=(freq[b]||0)*(b*b); // favor larger blocks
+    if(score>bestScore){bestScore=score;bestBlock=b;}
+  }
+  if(bestBlock<2)bestBlock=Math.max(1,blockSize);
+
+  // Calculate native pixel art grid size
+  var nativeW=Math.round(sw/bestBlock);
+  var nativeH=Math.round(sh/bestBlock);
+
+  // Clamp to reasonable stitch range (20–120)
+  var targetW=Math.max(20,Math.min(120,nativeW));
+  var targetH=Math.max(20,Math.min(120,nativeH));
+
+  // If NOT pixel art (blockSize=1), suggest size based on complexity
+  var isPixelArt=(bestBlock>=2);
+  if(!isPixelArt){
+    // Flat art: suggest based on image aspect + moderate size
+    var longer=Math.max(sw,sh);
+    var base=longer>2000?80:longer>800?60:40;
+    if(sw>=sh){targetW=base;targetH=Math.max(20,Math.round(base*sh/sw));}
+    else{targetH=base;targetW=Math.max(20,Math.round(base*sw/sh));}
+  }
+
+  // Apply
+  document.getElementById('sW').value=targetW;document.getElementById('vW').textContent=targetW;
+  document.getElementById('sH').value=targetH;document.getElementById('vH').textContent=targetH;
+  document.getElementById('lock').checked=false;
+
+  var msg=isPixelArt
+    ? '🎮 Pixel art ตรวจพบ block size '+bestBlock+'px → แนะนำ '+targetW+'×'+targetH+' stitches'
+    : '🖼 Flat art → แนะนำ '+targetW+'×'+targetH+' stitches';
+  hint.textContent=msg;
+  hint.style.display='block';
+}
+
+// ── AUTO COLORS: วิเคราะห์จำนวนสีที่เหมาะสม ──────────────────────
+function autoColors(){
+  if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
+  var hint=document.getElementById('auto-color-hint');
+
+  // Sample at small size
+  var sc=document.createElement('canvas');sc.width=120;sc.height=120;
+  var sx=sc.getContext('2d');
+  sx.fillStyle='#ffffff';sx.fillRect(0,0,120,120);
+  sx.drawImage(refSrc,0,0,120,120);
+  var px=sx.getImageData(0,0,120,120).data;
+
+  // Collect unique colors (quantized to 5-bit per channel)
+  var colorSet={};
+  for(var i=0;i<px.length;i+=4){
+    var a=px[i+3];if(a<40)continue;
+    var r=(px[i]>>3)<<3, g=(px[i+1]>>3)<<3, b=(px[i+2]>>3)<<3;
+    // Skip near-white (background)
+    if(r>230&&g>230&&b>230)continue;
+    var key=(r<<16)|(g<<8)|b;
+    colorSet[key]=(colorSet[key]||0)+1;
+  }
+  var total=Object.values(colorSet).reduce(function(a,b){return a+b;},0);
+
+  // Filter very rare colors (< 0.5% of pixels)
+  var significantColors=Object.entries(colorSet).filter(function(e){
+    return e[1]/total > 0.005;
+  });
+  var rawCount=significantColors.length;
+
+  // Merge visually similar colors (distance < 25)
+  var merged=[];
+  significantColors.sort(function(a,b){return b[1]-a[1];});
+  significantColors.forEach(function(e){
+    var k=+e[0];
+    var r=(k>>16)&255,g=(k>>8)&255,b=k&255;
+    var found=false;
+    for(var m=0;m<merged.length;m++){
+      var mr=merged[m][0],mg=merged[m][1],mb=merged[m][2];
+      var dist=Math.abs(r-mr)+Math.abs(g-mg)+Math.abs(b-mb);
+      if(dist<45){found=true;break;}
+    }
+    if(!found)merged.push([r,g,b]);
+  });
+
+  var suggested=Math.min(30,Math.max(4, merged.length));
+  // Round to nice numbers
+  if(suggested>20)suggested=Math.round(suggested/4)*4;
+  else if(suggested>12)suggested=Math.round(suggested/2)*2;
+
+  setNC(suggested);
+
+  hint.innerHTML='🎨 ตรวจพบ ~'+merged.length+' สีหลัก → ตั้งค่า <b>'+suggested+' สี</b>';
+  hint.style.display='block';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -871,6 +1026,41 @@ function doConvert(){
             if(d<bestD){bestD=d;bestI=pi;}
           }
           grid[r][c]=bestI;
+        }
+      }
+
+      pf.style.width='90%';pt.textContent='กรอง Noise...';
+
+      // ── STEP 7: Noise filter (remove isolated 1-2 pixel islands) ──
+      var chkNoise=document.getElementById('chkNoise').checked;
+      if(chkNoise){
+        var changed=true, pass=0;
+        while(changed && pass<3){
+          changed=false; pass++;
+          for(var r=1;r<ROWS-1;r++){
+            for(var c=1;c<COLS-1;c++){
+              var ci2=grid[r][c];
+              if(ci2<0)continue;
+              // Count neighbors with SAME color
+              var sameN=0, nbColors={};
+              var dirs=[[r-1,c],[r+1,c],[r,c-1],[r,c+1],[r-1,c-1],[r-1,c+1],[r+1,c-1],[r+1,c+1]];
+              dirs.forEach(function(d){
+                var nr2=d[0],nc2=d[1];
+                if(nr2<0||nr2>=ROWS||nc2<0||nc2>=COLS)return;
+                var nc3=grid[nr2][nc2];
+                if(nc3===ci2)sameN++;
+                if(nc3>=0)nbColors[nc3]=(nbColors[nc3]||0)+1;
+              });
+              // If isolated (0-1 same-color neighbors), replace with most common neighbor
+              if(sameN<=1){
+                var bestNb=-1,bestNbCnt=0;
+                Object.entries(nbColors).forEach(function(e){
+                  if(+e[0]!==ci2&&+e[1]>bestNbCnt){bestNbCnt=+e[1];bestNb=+e[0];}
+                });
+                if(bestNb>=0&&bestNbCnt>=3){grid[r][c]=bestNb;changed=true;}
+              }
+            }
+          }
         }
       }
 
