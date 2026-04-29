@@ -713,105 +713,90 @@ function matchRatio(){
 // Store detected pixel art block size for use in doConvert
 var detectedBlockSize=0;
 
-// ── AUTO SIZE: วิเคราะห์ pixel art block size (robust version) ────
+// ── AUTO SIZE: Variance method — แม่นที่สุดสำหรับ pixel art ────────
 function autoSize(){
   if(!refSrc){alert('อัปโหลดภาพก่อนนะคะ');return;}
   var hint=document.getElementById('auto-size-hint');
-
   var sw=refSrc.naturalWidth, sh=refSrc.naturalHeight;
 
-  // Draw at native size (cap 1200px for performance)
-  var capSide=1200;
-  var scale=Math.min(1, capSide/Math.max(sw,sh));
-  var W=Math.round(sw*scale), H=Math.round(sh*scale);
+  // Draw at native resolution (cap 1200)
+  var cap=1200, scl=Math.min(1,cap/Math.max(sw,sh));
+  var W=Math.round(sw*scl), H=Math.round(sh*scl);
   var sc=document.createElement('canvas');sc.width=W;sc.height=H;
   var sx=sc.getContext('2d');
   sx.fillStyle='#ffffff';sx.fillRect(0,0,W,H);
   sx.drawImage(refSrc,0,0,W,H);
   var px=sx.getImageData(0,0,W,H).data;
 
-  function getLum(x,y){var i=(y*W+x)*4;return 0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];}
+  // ── Variance Method ──────────────────────────────────────────────
+  // For each candidate block size b, divide image into b×b blocks
+  // and measure average color variance within each block.
+  // True pixel art block size → variance is MINIMUM (each block = 1 solid color)
+  var bestB=1, bestVar=1e18;
+  var varScores=[];
 
-  // ── Method: scan horizontal edge transitions ──
-  // Count pixels between consecutive color-change edges
-  var gaps=[];
-  for(var row=Math.floor(H*0.15);row<H*0.85;row+=3){
-    var lastEdge=-1;
-    var prev=[px[(row*W)*4],px[(row*W)*4+1],px[(row*W)*4+2]];
-    for(var col=1;col<W;col++){
-      var i=(row*W+col)*4;
-      var a=px[i+3];if(a<40)continue;
-      var dr=Math.abs(px[i]-prev[0]),dg=Math.abs(px[i+1]-prev[1]),db=Math.abs(px[i+2]-prev[2]);
-      if(dr+dg+db>60){
-        if(lastEdge>=0){var g=col-lastEdge;if(g>=2&&g<=80)gaps.push(g);}
-        lastEdge=col;
-        prev=[px[i],px[i+1],px[i+2]];
+  for(var b=3;b<=Math.min(60,Math.floor(Math.min(W,H)/8));b++){
+    var totalVar=0, count=0;
+    var cols=Math.floor(W/b), rows=Math.floor(H/b);
+    // Sample every 3rd block for speed
+    for(var r=0;r<rows;r+=2){
+      for(var c=0;c<cols;c+=2){
+        var x0=c*b,y0=r*b;
+        var sumR=0,sumG=0,sumB=0,n=0;
+        var sq2R=0,sq2G=0,sq2B=0;
+        for(var dy=0;dy<b;dy++){
+          for(var dx=0;dx<b;dx++){
+            var idx=((y0+dy)*W+(x0+dx))*4;
+            var rv=px[idx],gv=px[idx+1],bv=px[idx+2];
+            sumR+=rv;sumG+=gv;sumB+=bv;
+            sq2R+=rv*rv;sq2G+=gv*gv;sq2B+=bv*bv;
+            n++;
+          }
+        }
+        var varR=sq2R/n-(sumR/n)*(sumR/n);
+        var varG=sq2G/n-(sumG/n)*(sumG/n);
+        var varB=sq2B/n-(sumB/n)*(sumB/n);
+        totalVar+=(varR+varG+varB)/3;
+        count++;
       }
     }
+    var avgVar=count>0?totalVar/count:9999;
+    varScores.push([b, avgVar]);
+    if(avgVar<bestVar){bestVar=avgVar;bestB=b;}
   }
-  // Also scan vertical
-  for(var col2=Math.floor(W*0.15);col2<W*0.85;col2+=3){
-    var lastEdge2=-1;
-    var prev2=[px[col2*4],px[col2*4+1],px[col2*4+2]];
-    for(var row2=1;row2<H;row2++){
-      var i2=(row2*W+col2)*4;
-      var a2=px[i2+3];if(a2<40)continue;
-      var dr2=Math.abs(px[i2]-prev2[0]),dg2=Math.abs(px[i2+1]-prev2[1]),db2=Math.abs(px[i2+2]-prev2[2]);
-      if(dr2+dg2+db2>60){
-        if(lastEdge2>=0){var g2=row2-lastEdge2;if(g2>=2&&g2<=80)gaps.push(g2);}
-        lastEdge2=row2;
-        prev2=[px[i2],px[i2+1],px[i2+2]];
-      }
+
+  // Require variance to be significantly lower than neighbors
+  // (true pixel art has a clear minimum, not just noise)
+  var isPixelArt=false;
+  for(var vi=1;vi<varScores.length-1;vi++){
+    if(varScores[vi][0]===bestB){
+      var prevV=varScores[vi-1][1], nextV=varScores[vi+1][1];
+      // Must be at least 30% lower than both neighbors
+      if(bestVar < prevV*0.7 && bestVar < nextV*0.7) isPixelArt=true;
+      // Or simply very low absolute variance (very uniform blocks)
+      if(bestVar < 5) isPixelArt=true;
+      break;
     }
   }
 
-  if(!gaps.length){
-    // fallback: not pixel art
-    detectedBlockSize=0;
-    var base=Math.max(sw,sh)>1500?80:60;
-    _applySize(base, Math.round(base*sh/sw), false, 0, hint);
-    return;
-  }
-
-  // ── Find GCD-like dominant block size ──
-  // Score each candidate b: sum of gaps that are close to a multiple of b
-  var scores={};
-  for(var b=2;b<=60;b++){
-    var score=0;
-    gaps.forEach(function(g){
-      var rem=g%b;
-      var nearness=Math.min(rem, b-rem); // 0=perfect multiple
-      if(nearness<=1)score+=b; // reward larger b more
-    });
-    scores[b]=score;
-  }
-  // Find best block size
-  var bestB=2,bestS=0;
-  for(var b2=2;b2<=60;b2++){
-    if(scores[b2]>bestS){bestS=scores[b2];bestB=b2;}
-  }
-
-  // Verify: at this block size, how many stitches?
-  // Use actual image dimensions (not scaled)
-  var realBlock=bestB/scale; // unscale back to native px
+  // Convert block size from scaled coords back to native
+  var realBlock=bestB/scl;
   var stitchW=Math.round(sw/realBlock);
   var stitchH=Math.round(sh/realBlock);
 
-  var isPixelArt=(bestB>=3 && stitchW>=10 && stitchW<=200);
-
-  if(!isPixelArt){
+  if(!isPixelArt || stitchW<8 || stitchW>200){
     detectedBlockSize=0;
-    var base2=Math.max(sw,sh)>1500?80:60;
-    _applySize(base2, Math.round(base2*sh/sw), false, 0, hint);
+    var base=Math.max(sw,sh)>1500?80:Math.max(sw,sh)>600?60:40;
+    stitchW=base; stitchH=Math.round(base*sh/sw);
+    _applySize(Math.max(10,Math.min(150,stitchW)),
+               Math.max(10,Math.min(150,stitchH)), false, 0, hint);
     return;
   }
 
-  // Clamp
   stitchW=Math.max(10,Math.min(150,stitchW));
   stitchH=Math.max(10,Math.min(150,stitchH));
   detectedBlockSize=Math.round(realBlock);
-
-  _applySize(stitchW, stitchH, true, bestB, hint);
+  _applySize(stitchW, stitchH, true, Math.round(realBlock), hint);
 }
 
 function _applySize(tw,th,isPixelArt,blockPx,hint){
