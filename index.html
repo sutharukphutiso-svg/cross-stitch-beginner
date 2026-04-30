@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cross Stitch Pattern Maker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -68,9 +69,9 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
 
 /* PALETTE */
 #pal-grid{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px}
-.sw{width:22px;height:22px;border-radius:3px;cursor:pointer;border:2px solid transparent;transition:transform .1s}
+.sw{width:22px;height:22px;border-radius:3px;cursor:pointer;border:2px solid transparent;transition:transform .1s,box-shadow .1s}
 .sw:hover{transform:scale(1.15)}
-.sw.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--gold2)}
+.sw.sel{border-color:#c0392b;box-shadow:0 0 0 2px #c0392b,0 0 0 4px rgba(192,57,43,.25);transform:scale(1.1)}
 
 /* DMC LIST */
 #dmc-list{max-height:200px;overflow-y:auto;font-size:10px}
@@ -127,6 +128,8 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
   <div class="sep"></div>
   <button class="tb" onclick="undo()">↩ Undo</button>
   <button class="tb rd" onclick="clearAll()">✕ Clear</button>
+  <div class="sep"></div>
+  <button class="tb" id="t-delcol" onclick="setTool('delcol',this)" title="คลิกสีในภาพเพื่อลบออกทั้งหมด">🗑 Del Color</button>
 </div>
 
 <div id="main">
@@ -205,7 +208,7 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
 
   <div style="display:flex;gap:4px;margin-bottom:0">
     <button class="btn primary" style="flex:1;font-size:13px;padding:8px" onclick="doConvert()">✦ แปลงเป็น Pattern</button>
-    <button class="btn" style="padding:8px 10px;font-size:13px" onclick="undo()" title="Undo (Ctrl+Z)">↩</button>
+    <button id="btn-sym-toggle" class="btn" style="padding:8px 10px;font-size:13px;min-width:38px" onclick="toggleSymDisplay()" title="ซ่อน/แสดง Symbol (S)">■</button>
   </div>
 
   <div class="sec" style="margin-top:10px">
@@ -214,6 +217,8 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
     <button class="btn success" style="background:#2980b9;border-color:#2980b9" onclick="exportPatternKeeper()">📖 Pattern Keeper</button>
     <button class="btn" onclick="exportChart()">📋 Chart + Symbols</button>
     <button class="btn" onclick="exportFlossList()">🧵 Floss List</button>
+    <button class="btn" style="background:#6b3a8a;border-color:#6b3a8a;color:#fff;width:100%;margin-top:4px" onclick="exportAllPDF()">📄 Export PDF (8 ไฟล์ ครบชุด)</button>
+    <div id="pdf-progress" style="display:none;margin-top:6px;font-size:11px;color:var(--muted);text-align:center"></div>
   </div>
 
 </div><!-- /left -->
@@ -252,9 +257,19 @@ input[type=checkbox]{accent-color:var(--gold2);width:12px;height:12px}
 <div id="right">
   <div class="sec-h" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:3px">Palette</div>
   <div id="pal-grid"></div>
-  <div style="display:flex;gap:3px;margin-bottom:8px">
+  <div style="display:flex;gap:3px;margin-bottom:4px">
     <button class="btn" style="flex:1;padding:3px;font-size:10px" onclick="addColor()">+ สี</button>
     <button class="btn" style="flex:1;padding:3px;font-size:10px;color:var(--red)" onclick="removeUnused()">ลบที่ไม่ใช้</button>
+  </div>
+  <div id="del-color-bar" style="display:none;margin-bottom:8px;border:2px solid #c0392b;border-radius:6px;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#fff5f5">
+      <div id="del-color-swatch" style="width:18px;height:18px;border-radius:3px;border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div id="del-color-name" style="font-size:11px;font-weight:600;color:#c0392b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">--</div>
+        <div id="del-color-count" style="font-size:10px;color:var(--muted)">0 stitches</div>
+      </div>
+    </div>
+    <button id="btn-del-color" style="width:100%;padding:5px;font-size:11px;background:#c0392b;border:none;color:#fff;cursor:pointer;font-weight:600;font-family:inherit" onclick="deleteSelectedColor()">🗑 ลบสีนี้ออกจากงาน</button>
   </div>
   <div class="sec-h" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px">DMC Thread</div>
   <div id="dmc-list"></div>
@@ -287,7 +302,7 @@ var detectedBlock=0;
 var gc,ctx,area,refC,refX;
 
 // ═══════════════ DMC DATABASE ═══════════════
-var SYM='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz0123456789@#$%&+=';
+var SYM=['■','●','▲','◆','★','✖','✚','♠','♣','♥','♦','□','○','△','◇','☆','✦','✜','♤','♧','♡','♢','▼','▽','◧','◨','◩','◪','◈','◉','▣','▤','▥','▦','▧','▨','▩','◐','◑','◒','◓','⬟','⬡','⬢','✿','❋','❖','⊕','⊗','⊘'];
 var DMC=[
 ["blanc",255,255,255,"White"],["ecru",240,234,218,"Ecru"],
 [208,148,91,128,"Lavender VY DK"],[209,206,154,185,"Lavender DK"],[210,221,186,204,"Lavender MED"],[211,236,218,224,"Lavender LT"],
@@ -416,7 +431,7 @@ function render(){
         if(ss&&ds>=10){
           var rgb=h2r(palette[ci]),lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
           ctx.fillStyle=lum>145?'rgba(0,0,0,.6)':'rgba(255,255,255,.85)';
-          ctx.font='bold '+Math.max(6,Math.min(ds-4,12))+'px monospace';
+          ctx.font=Math.max(6,Math.min(ds-2,13))+'px "Segoe UI Symbol",Arial,sans-serif';
           ctx.textAlign='center';ctx.textBaseline='middle';
           ctx.fillText(getSym(ci),px+ds/2,py+ds/2);
         }
@@ -456,7 +471,7 @@ function setTool(t,btn){
   tool=t;
   document.querySelectorAll('.tb').forEach(function(b){b.classList.remove('act');});
   btn.classList.add('act');
-  var cursors={move:'grab',paint:'crosshair',erase:'cell',fill:'crosshair',pick:'crosshair'};
+  var cursors={move:'grab',paint:'crosshair',erase:'cell',fill:'crosshair',pick:'crosshair',delcol:'not-allowed'};
   area.style.cursor=cursors[t]||'crosshair';
   document.getElementById('st-tool').textContent=btn.textContent.trim();
 }
@@ -475,6 +490,23 @@ function flood(c,r,from,to){
 // ═══════════════ HISTORY ═══════════════
 function pushH(){hist.push(grid.map(function(r){return r.slice();}));if(hist.length>40)hist.shift();}
 function undo(){if(!hist.length)return;grid=hist.pop();updPal();render();}
+
+function toggleSymDisplay(){
+  var chk=document.getElementById('chkSym');
+  var btn=document.getElementById('btn-sym-toggle');
+  chk.checked=!chk.checked;
+  // Visual: active (showing symbols) = filled icon, muted; hidden = outlined, dimmed
+  if(chk.checked){
+    btn.textContent='■';
+    btn.style.opacity='1';
+    btn.title='ซ่อน Symbol (S)';
+  } else {
+    btn.textContent='□';
+    btn.style.opacity='0.55';
+    btn.title='แสดง Symbol (S)';
+  }
+  render();
+}
 function clearAll(){pushH();grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});updPal();render();}
 
 // ═══════════════ EVENTS ═══════════════
@@ -491,6 +523,14 @@ function initEvents(){
     var p=getCell(e),c=p[0],r=p[1];
     if(tool==='move'){painting=true;area.style.cursor='grabbing';panStart={x:e.clientX,y:e.clientY,vx:VX,vy:VY};return;}
     if(tool==='pick'){if(inB(c,r)&&grid[r][c]>=0){SI=grid[r][c];updPal();}return;}
+    if(tool==='delcol'){
+      if(!inB(c,r)||grid[r][c]<0)return;
+      SI=grid[r][c];updPal();
+      if(confirm('ลบสี '+palette[SI]+' (DMC '+nearDMC(palette[SI]).num+') ออกจากงานทั้งหมด?')){
+        deleteSelectedColor();
+      }
+      return;
+    }
     if(tool==='fill'){if(!inB(c,r))return;pushH();flood(c,r,grid[r][c],SI);updPal();render();return;}
     pushH();painting=true;paintCell(c,r);render();
   });
@@ -512,6 +552,7 @@ function initEvents(){
     var km={m:'move',p:'paint',e:'erase',f:'fill',k:'pick'};
     if(km[e.key.toLowerCase()]){var b=document.getElementById('t-'+km[e.key.toLowerCase()]);if(b)setTool(km[e.key.toLowerCase()],b);}
     if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
+    if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key==='s'&&document.activeElement.tagName!=='INPUT'){toggleSymDisplay();}
   });
   window.addEventListener('resize',function(){render();setTimeout(renderRef,50);});
 }
@@ -527,7 +568,38 @@ function updPal(){
     s.ondblclick=function(ev){ev.stopPropagation();openColorPicker(i,ev);};
     el.appendChild(s);
   });
+  // Show delete bar with info about selected color
+  var delBar=document.getElementById('del-color-bar');
+  if(delBar){
+    if(palette.length>0&&SI>=0&&SI<palette.length){
+      delBar.style.display='block';
+      var dSI=nearDMC(palette[SI]);
+      var cnt2=0;for(var r2=0;r2<ROWS;r2++)for(var c2=0;c2<COLS;c2++)if(grid[r2][c2]===SI)cnt2++;
+      document.getElementById('del-color-swatch').style.background=palette[SI];
+      document.getElementById('del-color-name').textContent='DMC '+dSI.num+' – '+dSI.name;
+      document.getElementById('del-color-count').textContent=cnt2+' stitches';
+    } else {
+      delBar.style.display='none';
+    }
+  }
   updDMC();
+}
+
+// Delete the currently selected color: wipe all its pixels from grid, remove from palette
+function deleteSelectedColor(){
+  if(SI<0||SI>=palette.length)return;
+  pushH();
+  var delIdx=SI;
+  // Erase all pixels of this color from grid, then shift indices
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    if(grid[r][c]===delIdx){grid[r][c]=-1;}
+    else if(grid[r][c]>delIdx){grid[r][c]--;}
+  }
+  palette.splice(delIdx,1);
+  SI=Math.max(0,Math.min(SI,palette.length-1));
+  dmcCache={};
+  updPal();render();
+  showBadge('🗑 ลบสีออกแล้ว — palette เหลือ '+palette.length+' สี','ok');
 }
 function addColor(){palette.push('#888888');dmcCache={};SI=palette.length-1;updPal();openColorPicker(SI,null);}
 function removeUnused(){
@@ -599,6 +671,7 @@ function dzDrop(e){e.preventDefault();document.getElementById('dz').classList.re
 function loadImg(inp){if(inp.files[0])loadImgFile(inp.files[0]);}
 function loadImgFile(f){
   if(!f.type.startsWith('image/'))return;
+  var isPNG=f.type==='image/png';
   var rd=new FileReader();
   rd.onload=function(ev){
     imgSrc=new Image();
@@ -606,6 +679,27 @@ function loadImgFile(f){
       document.getElementById('thumb').src=ev.target.result;document.getElementById('thumb').style.display='block';
       showBadge('✓ โหลดสำเร็จ '+imgSrc.naturalWidth+'×'+imgSrc.naturalHeight,'ok');
       detectedBlock=0;
+
+      // Auto-detect transparency for PNG: draw on black bg and check if any pixel shifts significantly
+      if(isPNG){
+        var tc=document.createElement('canvas');tc.width=Math.min(imgSrc.naturalWidth,200);tc.height=Math.min(imgSrc.naturalHeight,200);
+        var tx=tc.getContext('2d');
+        tx.imageSmoothingEnabled=false;
+        tx.fillStyle='#000';tx.fillRect(0,0,tc.width,tc.height);
+        tx.drawImage(imgSrc,0,0,tc.width,tc.height);
+        var dB=tx.getImageData(0,0,tc.width,tc.height).data;
+        tx.fillStyle='#fff';tx.fillRect(0,0,tc.width,tc.height);
+        tx.drawImage(imgSrc,0,0,tc.width,tc.height);
+        var dW=tx.getImageData(0,0,tc.width,tc.height).data;
+        var alphaPx=0;
+        for(var i=0;i<dB.length;i+=4){if(Math.abs(dW[i]-dB[i])>30||Math.abs(dW[i+1]-dB[i+1])>30||Math.abs(dW[i+2]-dB[i+2])>30)alphaPx++;}
+        var hasTransparency=alphaPx>(tc.width*tc.height*0.005);
+        // For transparent PNGs: disable noise filter to preserve all edge pixels
+        if(hasTransparency){
+          document.getElementById('chkNoise').checked=false;
+        }
+      }
+
       // Quick block size estimate for hint
       quickBlockHint();
       // Show reference image
@@ -754,32 +848,30 @@ function autoColors(){
   var bW=W/curW,bH=H/curH;
   var isPA=detectedBlock>=2||(bW>=2&&bH>=2);
 
-  // Sample each block with dominant color (same as doConvert)
+  // Sample each block with strict dominant color — same logic as doConvert getDom
   var umap={};
   for(var r=0;r<curH;r++){
     for(var c=0;c<curW;c++){
       var x0=Math.floor(c*bW),y0=Math.floor(r*bH);
       var x1=Math.max(x0+1,Math.floor((c+1)*bW));
       var y1=Math.max(y0+1,Math.floor((r+1)*bH));
-      var rVal,gVal,bVal;
-      if(isPA){
-        var hist={};
-        for(var dy=y0;dy<y1;dy++) for(var dx=x0;dx<x1;dx++){
-          var idx=(dy*W+dx)*4;
-          var k=((px[idx]>>3)<<10)|((px[idx+1]>>3)<<5)|(px[idx+2]>>3);
-          hist[k]=(hist[k]||0)+1;
-        }
-        var bk=null,bn=0;
-        Object.keys(hist).forEach(function(k){if(hist[k]>bn){bn=hist[k];bk=+k;}});
-        if(!bk){continue;}
-        rVal=(bk>>10)*8+4;gVal=((bk>>5)&31)*8+4;bVal=(bk&31)*8+4;
-      } else {
-        var tr=0,tg=0,tb=0,n=0;
-        for(var dy=y0;dy<y1;dy++) for(var dx=x0;dx<x1;dx++){
-          var idx=(dy*W+dx)*4;tr+=px[idx];tg+=px[idx+1];tb+=px[idx+2];n++;
-        }
-        rVal=Math.round(tr/n);gVal=Math.round(tg/n);bVal=Math.round(tb/n);
+      // Shrink inward 20% to skip AA edge pixels
+      var bwInt=x1-x0,bhInt=y1-y0;
+      var mX=bwInt>=4?Math.floor(bwInt*0.2):0, mY=bhInt>=4?Math.floor(bhInt*0.2):0;
+      var sx0=x0+mX,sx1=x1-mX; if(sx1<=sx0){sx0=x0;sx1=x1;}
+      var sy0=y0+mY,sy1=y1-mY; if(sy1<=sy0){sy0=y0;sy1=y1;}
+      // 4-bit histogram — strict dominant bin
+      var hist={},bestK=null,bestN=0;
+      for(var dy=sy0;dy<sy1;dy++) for(var dx=sx0;dx<sx1;dx++){
+        var idx=(dy*W+dx)*4;
+        if(px[idx+3]<40)continue;
+        var k=((px[idx]>>4)<<8)|((px[idx+1]>>4)<<4)|(px[idx+2]>>4);
+        var cnt=(hist[k]=(hist[k]||0)+1);
+        if(cnt>bestN){bestN=cnt;bestK=k;}
       }
+      var rVal,gVal,bVal;
+      if(bestK===null){continue;}
+      rVal=(bestK>>8)*16+8; gVal=((bestK>>4)&15)*16+8; bVal=(bestK&15)*16+8;
       // Skip background
       var lum=0.299*rVal+0.587*gVal+0.114*bVal;
       var sat=Math.max(rVal,gVal,bVal)-Math.min(rVal,gVal,bVal);
@@ -787,15 +879,15 @@ function autoColors(){
       if(bgMode==='black'&&lum<25&&sat<20)isBg=true;
       if(bgMode==='white'&&lum>218&&sat<28)isBg=true;
       if(isBg)continue;
-      var snapK=((rVal>>3)<<10)|((gVal>>3)<<5)|(bVal>>3);
+      var snapK=((rVal>>4)<<8)|((gVal>>4)<<4)|(bVal>>4);
       umap[snapK]=(umap[snapK]||0)+1;
     }
   }
 
-  // Group by DMC (same as doConvert PA path)
+  // Group by DMC
   var dmcGroups={};
   Object.entries(umap).filter(function(e){return e[1]>=2;}).forEach(function(e){
-    var k=+e[0],r2=(k>>10)*8+4,g2=((k>>5)&31)*8+4,b2=(k&31)*8+4;
+    var k=+e[0],r2=(k>>8)*16+8,g2=((k>>4)&15)*16+8,b2=(k&15)*16+8;
     var d=nearDMC(r2h(r2,g2,b2));
     if(!dmcGroups[d.num])dmcGroups[d.num]={n:0};
     dmcGroups[d.num].n+=e[1];
@@ -816,7 +908,6 @@ function doConvert(){
   var maxNC=+document.getElementById('sNC').value;
   var bgMode=document.getElementById('bgMode').value;
   var chkNoise=document.getElementById('chkNoise').checked;
-  var keepAll=false;
   var prog=document.getElementById('prog-wrap'),pf=document.getElementById('prog-fill'),pt=document.getElementById('prog-txt');
   prog.style.display='block';pf.style.width='0%';pt.textContent='กำลังเตรียม...';
   showBadge('⏳ กำลังแปลง...','run');
@@ -825,149 +916,126 @@ function doConvert(){
       COLS=newC;ROWS=newR;
       grid=Array.from({length:ROWS},function(){return new Array(COLS).fill(-1);});
       palette=[];SI=0;hist=[];dmcCache={};
-      pf.style.width='15%';pt.textContent='อ่านภาพ...';
-      // Draw at native (cap 1600)
-      var sw=imgSrc.naturalWidth,sh=imgSrc.naturalHeight;
-      var cap=1600,scl=Math.min(1,cap/Math.max(sw,sh));
-      var W=Math.round(sw*scl),H=Math.round(sh*scl);
-      refC.width=W;refC.height=H;
-      // White render
-      refX.fillStyle='#ffffff';refX.fillRect(0,0,W,H);refX.drawImage(imgSrc,0,0,W,H);
-      var srcW=refX.getImageData(0,0,W,H).data;
-      // Black render (alpha detection)
-      refX.fillStyle='#000000';refX.fillRect(0,0,W,H);refX.drawImage(imgSrc,0,0,W,H);
-      var srcB=refX.getImageData(0,0,W,H).data;
-      // Detect alpha
-      var aCnt=0;
-      for(var i=0;i<H*W;i++){var idx=i*4;if(srcW[idx]-srcB[idx]>150&&srcW[idx+1]-srcB[idx+1]>150&&srcW[idx+2]-srcB[idx+2]>150)aCnt++;}
-      var hasAlpha=aCnt>H*W*0.005;
-      var bW=W/COLS,bH=H/ROWS,isPA=detectedBlock>=2||(bW>=2&&bH>=2);
-      pf.style.width='30%';pt.textContent='สุ่มตัวอย่างสี...';
-      // Per-block dominant color
-      function getDom(col,row,src){
-        var x0=Math.floor(col*bW),y0=Math.floor(row*bH),x1=Math.floor((col+1)*bW),y1=Math.floor((row+1)*bH);
-        x1=Math.max(x1,x0+1);y1=Math.max(y1,y0+1);
-        if(!isPA){
-          var tr=0,tg=0,tb=0,ta=0,n=0;
-          for(var y=y0;y<y1;y++)for(var x=x0;x<x1;x++){var idx=(y*W+x)*4;tr+=src[idx];tg+=src[idx+1];tb+=src[idx+2];ta+=src[idx+3];n++;}
-          return[Math.round(tr/n),Math.round(tg/n),Math.round(tb/n),Math.round(ta/n)];
-        }
-        var hist={};
-        for(var y=y0;y<y1;y++)for(var x=x0;x<x1;x++){
-          var idx=(y*W+x)*4,a=src[idx+3];if(a<40)continue;
-          var k=((src[idx]>>3)<<10)|((src[idx+1]>>3)<<5)|(src[idx+2]>>3);
-          if(!hist[k])hist[k]={r:0,g:0,b:0,a:0,n:0};
-          hist[k].r+=src[idx];hist[k].g+=src[idx+1];hist[k].b+=src[idx+2];hist[k].a+=a;hist[k].n++;
-        }
-        var bk=null,bn=0;Object.keys(hist).forEach(function(k){if(hist[k].n>bn){bn=hist[k].n;bk=k;}});
-        if(!bk)return[255,255,255,255];
-        var h=hist[bk];return[Math.round(h.r/h.n),Math.round(h.g/h.n),Math.round(h.b/h.n),Math.round(h.a/h.n)];
+
+      // ── STEP 1: Browser Nearest-Neighbor downscale to exact grid size
+      // Canvas starts transparent (all zeros) — alpha channel is preserved correctly
+      pf.style.width='20%';pt.textContent='Downscale (Nearest Neighbor)...';
+      var nnC=document.createElement('canvas');
+      nnC.width=COLS;nnC.height=ROWS;
+      var nnX=nnC.getContext('2d');
+      nnX.imageSmoothingEnabled=false;
+      // Do NOT fill background — keep canvas transparent so alpha channel stays intact
+      nnX.drawImage(imgSrc,0,0,COLS,ROWS);
+      var nnData=nnX.getImageData(0,0,COLS,ROWS).data;
+      // nnData layout per pixel: [R, G, B, A] at offsets ii, ii+1, ii+2, ii+3
+
+      // ── STEP 2: Read every pixel — check Alpha FIRST, then classify bg
+      pf.style.width='45%';pt.textContent='นับความถี่สี...';
+
+      function isBgRGB(r8,g8,b8){
+        var lum=0.299*r8+0.587*g8+0.114*b8;
+        var sat=Math.max(r8,g8,b8)-Math.min(r8,g8,b8);
+        if(bgMode==='white'&&lum>220&&sat<30)return true;
+        if(bgMode==='black'&&lum<20&&sat<20)return true;
+        return false;
       }
-      // Build pixel grid
-      var pg=[],bgMask=[],fg=[];
-      for(var r=0;r<ROWS;r++){
-        pg.push([]);bgMask.push([]);
-        for(var c=0;c<COLS;c++){
-          var cw=getDom(c,r,srcW),cb=getDom(c,r,srcB);
-          var rW=cw[0],gW=cw[1],bW2=cw[2],bg=false;
-          if(hasAlpha){
-            var diff=((cw[0]-cb[0])+(cw[1]-cb[1])+(cw[2]-cb[2]))/3;
-            var aEst=Math.max(0,Math.min(1,1-diff/255));
-            if(aEst<0.2){bg=true;}
-            else if(aEst<0.75){var a=aEst;rW=Math.round(Math.max(0,Math.min(255,(rW-(1-a)*255)/a)));gW=Math.round(Math.max(0,Math.min(255,(gW-(1-a)*255)/a)));bW2=Math.round(Math.max(0,Math.min(255,(bW2-(1-a)*255)/a)));}
-          } else if(bgMode!=='none'){
-            var lum=0.299*rW+0.587*gW+0.114*bW2,sat=Math.max(rW,gW,bW2)-Math.min(rW,gW,bW2);
-            if(bgMode==='black'&&lum<25&&sat<20)bg=true;
-            if(bgMode==='white'&&lum>218&&sat<28)bg=true;
+
+      var pgFlat=new Array(COLS*ROWS); // [r,g,b] or null
+      var colorFreq={};               // '#rrggbb' → pixel count
+
+      for(var i=0;i<COLS*ROWS;i++){
+        var ii=i*4;
+        var a8=nnData[ii+3]; // ← read Alpha channel explicitly
+
+        // Skip truly transparent pixels (alpha < 128) — these are background, not color
+        if(a8<128){pgFlat[i]=null;continue;}
+
+        var r8=nnData[ii],g8=nnData[ii+1],b8=nnData[ii+2];
+
+        // Explicit bg color check — ONLY applies to semi-transparent pixels (128 <= alpha < 200)
+        // Opaque pixels (alpha >= 200) are ALWAYS treated as foreground, even if white
+        // This prevents opaque white (e.g. dog belly fur) from being removed
+        if(bgMode!=='none'&&a8<200&&isBgRGB(r8,g8,b8)){pgFlat[i]=null;continue;}
+
+        pgFlat[i]=[r8,g8,b8];
+        var hex=r2h(r8,g8,b8);
+        colorFreq[hex]=(colorFreq[hex]||0)+1;
+      }
+
+      if(!Object.keys(colorFreq).length){
+        throw new Error('ไม่พบ foreground pixels — ลองเปลี่ยนโหมดพื้นหลัง');
+      }
+
+      // ── STEP 3: Group by nearest DMC → sort by frequency → HARD CAP to maxNC
+      pf.style.width='62%';pt.textContent='จัดกลุ่มสี DMC (top '+maxNC+')...';
+
+      var dmcFreq={};
+      Object.keys(colorFreq).forEach(function(hex){
+        var d=nearDMC(hex);
+        if(!dmcFreq[d.num]){dmcFreq[d.num]={hex:d.hex,n:0};}
+        dmcFreq[d.num].n+=colorFreq[hex];
+      });
+
+      var sortedDMC=Object.values(dmcFreq).sort(function(a,b){return b.n-a.n;});
+
+      // HARD CAP: slice to exactly maxNC — never more, even if more DMC colors exist
+      var chosen=sortedDMC.slice(0,maxNC);
+      palette=chosen.map(function(d){return d.hex;});
+
+      // Pre-parse palette RGB once
+      var palRGB=palette.map(function(h){return h2r(h)||[0,0,0];});
+
+      // ── STEP 4: Map every non-transparent pixel to nearest palette color
+      pf.style.width='78%';pt.textContent='Map สีลง Grid...';
+
+      for(var row=0;row<ROWS;row++){
+        for(var col=0;col<COLS;col++){
+          var idx=row*COLS+col;
+          if(pgFlat[idx]===null){grid[row][col]=-1;continue;}
+          var px=pgFlat[idx],best=-1,bd=1e18;
+          for(var pi=0;pi<palRGB.length;pi++){
+            var rgb=palRGB[pi];
+            var dd=colorDist(px[0],px[1],px[2],rgb[0],rgb[1],rgb[2]);
+            if(dd<bd){bd=dd;best=pi;}
           }
-          pg[r].push([rW,gW,bW2]);bgMask[r].push(bg);
-          if(!bg)fg.push([rW,gW,bW2]);
+          grid[row][col]=best;
         }
       }
-      // Flood fill bg from edges — ONLY for images without alpha AND explicit black bg
-      // For JPEG (no alpha, white bg): skip flood fill to avoid removing white parts of subject
-      if(!hasAlpha&&bgMode==='black'){
-        var vis=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);}),newBg=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
-        var stk=[];
-        function seedEdge(r,c){var p=pg[r][c],lm=0.299*p[0]+0.587*p[1]+0.114*p[2],st=Math.max(p[0],p[1],p[2])-Math.min(p[0],p[1],p[2]);if(lm>210&&st<30&&!vis[r][c]){vis[r][c]=true;stk.push([r,c]);}}
-        for(var ei=0;ei<ROWS;ei++){seedEdge(ei,0);seedEdge(ei,COLS-1);}
-        for(var ej=0;ej<COLS;ej++){seedEdge(0,ej);seedEdge(ROWS-1,ej);}
-        while(stk.length){
-          var pos=stk.pop(),pr=pos[0],pc=pos[1];
-          if(pr<0||pr>=ROWS||pc<0||pc>=COLS||newBg[pr][pc])continue;
-          var p3=pg[pr][pc],lm3=0.299*p3[0]+0.587*p3[1]+0.114*p3[2],st3=Math.max(p3[0],p3[1],p3[2])-Math.min(p3[0],p3[1],p3[2]);
-          if(lm3<208||st3>32)continue;
-          newBg[pr][pc]=true;
-          [[pr-1,pc],[pr+1,pc],[pr,pc-1],[pr,pc+1]].forEach(function(n){if(n[0]>=0&&n[0]<ROWS&&n[1]>=0&&n[1]<COLS&&!vis[n[0]][n[1]]){vis[n[0]][n[1]]=true;stk.push(n);}});
-        }
-        bgMask=newBg;fg=[];for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(!bgMask[r][c])fg.push(pg[r][c]);
-      }
-      pf.style.width='55%';pt.textContent='คำนวณสี...';
-      // Color quantize
-      if(!fg.length){throw new Error('ไม่พบ foreground pixels — ลองเปลี่ยนโหมดพื้นหลัง');}
-      var centers;
-      if(isPA){
-        // Pixel art: map each block color → nearest DMC → group by DMC number
-        var umap={};
-        fg.forEach(function(px){
-          var k=((px[0]>>3)<<10)|((px[1]>>3)<<5)|(px[2]>>3);
-          umap[k]=(umap[k]||0)+1;
-        });
-        // Filter min 2 blocks
-        var raw=Object.entries(umap).filter(function(e){return e[1]>=2;})
-          .sort(function(a,b){return b[1]-a[1];});
-        // Group by DMC number
-        var dmcGroups={};
-        raw.forEach(function(e){
-          var k=+e[0],r2=(k>>10)*8+4,g2=((k>>5)&31)*8+4,b2=(k&31)*8+4;
-          var d=nearDMC(r2h(r2,g2,b2));
-          if(!dmcGroups[d.num]){dmcGroups[d.num]={hex:d.hex,n:0};}
-          dmcGroups[d.num].n+=e[1];
-        });
-        // Sort by frequency, respect maxNC but keep rare colors (>0.03%)
-        var totalFg=fg.length||1;
-        var allDMC=Object.values(dmcGroups)
-          .sort(function(a,b){return b.n-a.n;})
-          .filter(function(g){return g.n/totalFg>0.0003;});
-        // Always include rare but significant colors (e.g. pink paws)
-        // Top maxNC by count, but force-include any color > 0.1% even if outside top N
-        var top=allDMC.slice(0,maxNC);
-        var forced=allDMC.filter(function(g){return g.n/totalFg>0.001&&top.indexOf(g)<0;});
-        centers=top.concat(forced).map(function(g){return h2r(g.hex)||[128,128,128];});
-      } else {
-        centers=kMeans(fg,maxNC);
-      }
-      palette=centers.map(function(c){return r2h(c[0],c[1],c[2]);});
-      pf.style.width='75%';pt.textContent='Map สีลง grid...';
-      // Map pixels
-      for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
-        if(bgMask[r][c]){grid[r][c]=-1;continue;}
-        var px2=pg[r][c],best=-1,bd=1e18;
-        for(var pi=0;pi<palette.length;pi++){
-          var rgb=h2r(palette[pi]);if(!rgb)continue;
-          var d=colorDist(px2[0],px2[1],px2[2],rgb[0],rgb[1],rgb[2]);
-          if(d<bd){bd=d;best=pi;}
-        }
-        grid[r][c]=best;
-      }
-      pf.style.width='88%';pt.textContent='Noise filter...';
-      // Noise filter
+
+      // ── STEP 5 (optional): Noise filter — connected-component from center outward
+      pf.style.width='90%';pt.textContent='Noise filter...';
       if(chkNoise){
         var mb=Array.from({length:ROWS},function(){return new Array(COLS).fill(false);});
-        var sx2=Math.floor(COLS/2),sy2=Math.floor(ROWS/2),sd=1e9,sr2=-1,sc2=-1;
-        for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){if(grid[r][c]>=0){var d2=(r-sy2)*(r-sy2)+(c-sx2)*(c-sx2);if(d2<sd){sd=d2;sr2=r;sc2=c;}}}
-        if(sr2>=0){
-          var bq=[[sr2,sc2]];mb[sr2][sc2]=true;var bi=0;
-          while(bi<bq.length){var bp=bq[bi++];[[bp[0]-1,bp[1]],[bp[0]+1,bp[1]],[bp[0],bp[1]-1],[bp[0],bp[1]+1]].forEach(function(n){if(n[0]>=0&&n[0]<ROWS&&n[1]>=0&&n[1]<COLS&&!mb[n[0]][n[1]]&&grid[n[0]][n[1]]>=0){mb[n[0]][n[1]]=true;bq.push(n);}});}
+        var sx=Math.floor(COLS/2),sy=Math.floor(ROWS/2),sd=1e9,sr=-1,sc=-1;
+        for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
+          if(grid[row][col]>=0){var dd2=(row-sy)*(row-sy)+(col-sx)*(col-sx);if(dd2<sd){sd=dd2;sr=row;sc=col;}}
         }
-        for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(grid[r][c]>=0&&!mb[r][c])grid[r][c]=-1;
+        if(sr>=0){
+          var bq=[[sr,sc]];mb[sr][sc]=true;var bi=0;
+          while(bi<bq.length){
+            var bp=bq[bi++];
+            [[bp[0]-1,bp[1]],[bp[0]+1,bp[1]],[bp[0],bp[1]-1],[bp[0],bp[1]+1]].forEach(function(n){
+              if(n[0]>=0&&n[0]<ROWS&&n[1]>=0&&n[1]<COLS&&!mb[n[0]][n[1]]&&grid[n[0]][n[1]]>=0){
+                mb[n[0]][n[1]]=true;bq.push(n);
+              }
+            });
+          }
+        }
+        for(var row=0;row<ROWS;row++)for(var col=0;col<COLS;col++){
+          if(grid[row][col]>=0&&!mb[row][col])grid[row][col]=-1;
+        }
       }
-      pf.style.width='95%';pt.textContent='เสร็จแล้ว!';
-      removeUnused();updPal();fitZoom();
+
+      pf.style.width='98%';pt.textContent='เสร็จแล้ว!';
+
+      // removeUnused() trims palette to only colors actually used in grid
+      // After it runs, palette.length <= maxNC is guaranteed because:
+      // we started with exactly maxNC entries and removeUnused() can only shrink it
+      removeUnused();
+      updPal();fitZoom();
       setTimeout(function(){
         prog.style.display='none';
         showBadge('✦ '+palette.length+' สี | '+COLS+'×'+ROWS+' stitches','ok');
-        // (sNC not auto-updated after convert)
       },300);
     }catch(err){
       prog.style.display='none';showBadge('❌ '+err.message,'err');console.error(err);
@@ -1032,7 +1100,7 @@ function exportChart(){
       ex.fillStyle=palette[ci];ex.fillRect(px2,py2,sz,sz);
       var rgb=h2r(palette[ci]),lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
       ex.fillStyle=lum>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
-      ex.font='bold '+(sz-5)+'px monospace';ex.textAlign='center';ex.textBaseline='middle';
+      ex.font=(sz-3)+'px "Segoe UI Symbol",Arial,sans-serif';ex.textAlign='center';ex.textBaseline='middle';
       ex.fillText(getSym(ci),px2+sz/2,py2+sz/2);
     }
     ex.strokeStyle='rgba(0,0,0,.1)';ex.lineWidth=.4;ex.strokeRect(px2,py2,sz,sz);
@@ -1051,7 +1119,7 @@ function exportChart(){
     var lx=ox+col,ly=lY+12+row*20;
     ex.fillStyle=d.hex;ex.fillRect(lx,ly-10,12,12);
     var rgb=h2r(d.hex),lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
-    ex.fillStyle=lum>140?'#000':'#fff';ex.font='bold 8px monospace';ex.textAlign='center';ex.textBaseline='middle';
+    ex.fillStyle=lum>140?'#000':'#fff';ex.font='bold 9px "Segoe UI Symbol",Arial,sans-serif';ex.textAlign='center';ex.textBaseline='middle';
     ex.fillText(getSym(i),lx+6,ly-4);
     ex.fillStyle='#333';ex.font='10px sans-serif';ex.textAlign='left';ex.textBaseline='alphabetic';
     ex.fillText(getSym(i)+' DMC '+d.num+' '+d.name.substring(0,18)+' ('+cnt[i]+')',lx+16,ly);
@@ -1075,7 +1143,7 @@ function exportFlossList(){
     ex.fillStyle=d.hex;ex.fillRect(10,y+5,14,14);ex.strokeStyle='#ccc';ex.lineWidth=.5;ex.strokeRect(10,y+5,14,14);
     var rgb=h2r(d.hex),lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
     ex.fillStyle=lum>140?'rgba(0,0,0,.6)':'rgba(255,255,255,.85)';
-    ex.font='bold 8px monospace';ex.textAlign='center';ex.fillText(getSym(x.i),17,y+15);
+    ex.font='bold 9px "Segoe UI Symbol",Arial,sans-serif';ex.textAlign='center';ex.fillText(getSym(x.i),17,y+15);
     ex.fillStyle='#1a1208';ex.font='11px sans-serif';ex.textAlign='left';
     ex.fillText('DMC '+d.num,30,y+17);
     ex.fillStyle='#555';ex.fillText(d.name.substring(0,22),100,y+17);
@@ -1126,6 +1194,7 @@ function exportPatternKeeper(){
         ex.fillStyle=lum2>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
         ex.font='bold '+(sz-6)+'px monospace';
         ex.textAlign='center';ex.textBaseline='middle';
+        ex.font=(sz-2)+'px "Segoe UI Symbol",Arial,sans-serif';
         ex.fillText(getSym(ci),px2+sz/2,py2+sz/2);
       }
       // Cell border
@@ -1172,6 +1241,495 @@ function exportPatternKeeper(){
   });
   
   dl(ec,'pattern-keeper.png');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PDF EXPORT — 8 files matching sample format
+// ══════════════════════════════════════════════════════════════════
+
+// Helper: draw the pattern grid on a canvas
+// mode: 'bw' (symbol only) | 'color' (color+symbol)
+// sz: cell size in px
+function makePdfPatternCanvas(mode, sz) {
+  var W = COLS * sz + 80, H = ROWS * sz + 80;
+  var ec = document.createElement('canvas'); ec.width = W; ec.height = H;
+  var ex = ec.getContext('2d');
+  ex.fillStyle = '#ffffff'; ex.fillRect(0, 0, W, H);
+  var ox = 40, oy = 40;
+  var cnt = new Array(palette.length).fill(0);
+
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var ci = grid[r][c];
+      var px2 = ox + c * sz, py2 = oy + r * sz;
+      if (ci >= 0) {
+        cnt[ci]++;
+        if (mode === 'color') {
+          ex.fillStyle = palette[ci]; ex.fillRect(px2, py2, sz, sz);
+        }
+        var rgb = h2r(palette[ci]), lum = rgb ? 0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2] : 128;
+        if (mode === 'color') {
+          ex.fillStyle = lum > 140 ? 'rgba(0,0,0,.8)' : 'rgba(255,255,255,.95)';
+        } else {
+          ex.fillStyle = '#222';
+        }
+        ex.font = Math.max(5, sz - 3) + 'px "Segoe UI Symbol",Arial,sans-serif';
+        ex.textAlign = 'center'; ex.textBaseline = 'middle';
+        ex.fillText(getSym(ci), px2 + sz/2, py2 + sz/2);
+      }
+      ex.strokeStyle = mode === 'color' ? 'rgba(0,0,0,.12)' : 'rgba(0,0,0,.2)';
+      ex.lineWidth = 0.4; ex.strokeRect(px2, py2, sz, sz);
+    }
+  }
+  // Bold grid every 10
+  ex.strokeStyle = 'rgba(0,0,0,.45)'; ex.lineWidth = 0.9;
+  for (var r2 = 0; r2 <= ROWS; r2 += 10) { ex.beginPath(); ex.moveTo(ox, oy+r2*sz); ex.lineTo(ox+COLS*sz, oy+r2*sz); ex.stroke(); }
+  for (var c2 = 0; c2 <= COLS; c2 += 10) { ex.beginPath(); ex.moveTo(ox+c2*sz, oy); ex.lineTo(ox+c2*sz, oy+ROWS*sz); ex.stroke(); }
+  // Row/col numbers every 10
+  ex.fillStyle = '#777'; ex.font = '9px sans-serif'; ex.textAlign = 'center'; ex.textBaseline = 'middle';
+  for (var c3 = 0; c3 <= COLS; c3 += 10) { ex.fillText(c3, ox + c3*sz, oy - 14); }
+  ex.textAlign = 'right';
+  for (var r3 = 0; r3 <= ROWS; r3 += 10) { ex.fillText(r3, ox - 6, oy + r3*sz); }
+  ec._cnt = cnt;
+  return ec;
+}
+
+// Helper: make the preview thumbnail (color render, full pattern)
+function makePreviewCanvas() {
+  var sz = 6, W = COLS * sz, H = ROWS * sz;
+  var ec = document.createElement('canvas'); ec.width = W; ec.height = H;
+  var ex = ec.getContext('2d');
+  ex.fillStyle = '#f8f4ec'; ex.fillRect(0, 0, W, H);
+  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) {
+    var ci = grid[r][c]; if (ci < 0) continue;
+    ex.fillStyle = palette[ci]; ex.fillRect(c*sz, r*sz, sz, sz);
+  }
+  // Subtle grid
+  ex.strokeStyle = 'rgba(0,0,0,.08)'; ex.lineWidth = 0.3;
+  for (var r2 = 0; r2 <= ROWS; r2++) { ex.beginPath(); ex.moveTo(0, r2*sz); ex.lineTo(W, r2*sz); ex.stroke(); }
+  for (var c2 = 0; c2 <= COLS; c2++) { ex.beginPath(); ex.moveTo(c2*sz, 0); ex.lineTo(c2*sz, H); ex.stroke(); }
+  return ec;
+}
+
+// Helper: make color legend canvas
+function makeLegendCanvas(cnt) {
+  var used = palette.map(function(h,i){return{h:h,n:cnt[i],i:i};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
+  var total = used.reduce(function(s,x){return s+x.n;},0);
+  var cols = 2, rowH = 22, W = 760, rows = Math.ceil(used.length/cols);
+  var H = rows * rowH + 40;
+  var ec = document.createElement('canvas'); ec.width = W; ec.height = H;
+  var ex = ec.getContext('2d');
+  ex.fillStyle = '#ffffff'; ex.fillRect(0, 0, W, H);
+  // Header
+  ex.fillStyle = '#2a5c38'; ex.font = 'bold 12px sans-serif'; ex.textAlign = 'left'; ex.textBaseline = 'alphabetic';
+  ex.fillText('N    Sym    DMC    Name    Stitches    %', 10, 20);
+  ex.strokeStyle = '#2a5c38'; ex.lineWidth = 0.5; ex.beginPath(); ex.moveTo(0, 26); ex.lineTo(W, 26); ex.stroke();
+
+  used.forEach(function(x, idx) {
+    var d = nearDMC(x.h);
+    var col2 = Math.floor(idx/rows), row2 = idx % rows;
+    var lx = col2 * (W/2) + 10, ly = 28 + row2 * rowH;
+    // N
+    ex.fillStyle = '#333'; ex.font = '11px sans-serif'; ex.textAlign = 'left'; ex.textBaseline = 'middle';
+    ex.fillText((idx+1), lx, ly + 8);
+    // Swatch
+    ex.fillStyle = d.hex; ex.fillRect(lx+22, ly, 16, 16);
+    ex.strokeStyle = '#aaa'; ex.lineWidth = 0.5; ex.strokeRect(lx+22, ly, 16, 16);
+    var rgb = h2r(d.hex), lum = rgb ? 0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2] : 128;
+    ex.fillStyle = lum>140?'#000':'#fff';
+    ex.font = '9px "Segoe UI Symbol",Arial,sans-serif'; ex.textAlign = 'center'; ex.textBaseline = 'middle';
+    ex.fillText(getSym(x.i), lx+30, ly+8);
+    // DMC info
+    ex.fillStyle = '#333'; ex.font = '11px sans-serif'; ex.textAlign = 'left'; ex.textBaseline = 'middle';
+    ex.fillText('DMC ' + d.num, lx+44, ly+8);
+    ex.fillStyle = '#555';
+    ex.fillText(d.name.substring(0,22), lx+105, ly+8);
+    ex.fillStyle = '#333'; ex.textAlign = 'right';
+    ex.fillText(x.n.toLocaleString(), lx+320, ly+8);
+    ex.fillStyle = '#888'; ex.textAlign = 'right';
+    ex.fillText((x.n/total*100).toFixed(1)+'%', lx+365, ly+8);
+    ex.strokeStyle = '#eee'; ex.lineWidth = 0.3;
+    ex.beginPath(); ex.moveTo(lx, ly+rowH); ex.lineTo(lx+(W/2)-10, ly+rowH); ex.stroke();
+  });
+  ec._used = used;
+  return ec;
+}
+
+// Helper: build a jsPDF page with header bar
+function makePdfHeader(pdf, title, subtitle, pageW, pageH) {
+  // Dark green header bar
+  pdf.setFillColor(42, 92, 56);
+  pdf.rect(0, 0, pageW, 18, 'F');
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(11); pdf.setFont('helvetica', 'bold');
+  pdf.text('Cross Stitch Pattern', 8, 12);
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal');
+  pdf.text(subtitle, pageW - 8, 12, {align: 'right'});
+
+  // Info lines
+  pdf.setTextColor(30, 30, 30); pdf.setFontSize(9); pdf.setFont('helvetica', 'normal');
+  pdf.text('Pattern: ' + COLS + ' x ' + ROWS + ' stitches  |  Colors: ' + palette.length, 12, 28);
+  pdf.text('Finished: ' + (COLS/14*2.54).toFixed(1) + '" x ' + (ROWS/14*2.54).toFixed(1) + '" (' + (COLS/14*2.54).toFixed(1) + ' x ' + (ROWS/14*2.54).toFixed(1) + ' cm)', 12, 37);
+  pdf.text('Fabric: Aida 14 ct', 12, 46);
+}
+
+// Helper: add one chart-block page
+// blockX/Y: 1-based start stitch, blockW/H: stitches in this block
+function addChartPage(pdf, mode, sz, bx, by, bw, bh, pageLabel, pageW, pageH, totalPages, pageNum) {
+  if (pageNum > 1) pdf.addPage();
+  makePdfHeader(pdf, '', mode + ' | ' + pageLabel, pageW, pageH);
+
+  // Block label
+  pdf.setTextColor(30, 30, 30); pdf.setFontSize(9); pdf.setFont('helvetica', 'bold');
+  pdf.text('Chart Block ' + pageNum + ' / ' + totalPages + '  X:' + bx + '-' + (bx+bw-1) + '  Y:' + by + '-' + (by+bh-1), pageW/2, 56, {align:'center'});
+
+  // Render block to canvas
+  var cellSz = sz;
+  var ox2 = 24, oy2 = 20;
+  var cW = bw * cellSz + ox2 + 16;
+  var cH = bh * cellSz + oy2 + 16;
+  var bc = document.createElement('canvas'); bc.width = cW; bc.height = cH;
+  var bx2 = bc.getContext('2d');
+  bx2.fillStyle = '#ffffff'; bx2.fillRect(0, 0, cW, cH);
+
+  for (var row = 0; row < bh; row++) {
+    for (var col = 0; col < bw; col++) {
+      var gr = by - 1 + row, gc = bx - 1 + col;
+      if (gr >= ROWS || gc >= COLS) continue;
+      var ci = grid[gr][gc];
+      var px2 = ox2 + col * cellSz, py2 = oy2 + row * cellSz;
+      if (ci >= 0) {
+        if (mode === 'Color') { bx2.fillStyle = palette[ci]; bx2.fillRect(px2, py2, cellSz, cellSz); }
+        var rgb = h2r(palette[ci]), lum = rgb ? 0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2] : 128;
+        bx2.fillStyle = mode === 'Color' ? (lum>140?'rgba(0,0,0,.85)':'rgba(255,255,255,.95)') : '#1a1a1a';
+        bx2.font = Math.max(5, cellSz-2) + 'px "Segoe UI Symbol",Arial,sans-serif';
+        bx2.textAlign = 'center'; bx2.textBaseline = 'middle';
+        bx2.fillText(getSym(ci), px2 + cellSz/2, py2 + cellSz/2);
+      }
+      bx2.strokeStyle = mode === 'Color' ? 'rgba(0,0,0,.13)' : 'rgba(0,0,0,.22)';
+      bx2.lineWidth = 0.4; bx2.strokeRect(px2, py2, cellSz, cellSz);
+    }
+  }
+  // Bold 10-lines
+  bx2.strokeStyle = 'rgba(0,0,0,.5)'; bx2.lineWidth = 0.8;
+  for (var r2 = 0; r2 <= bh; r2 += 10) { bx2.beginPath(); bx2.moveTo(ox2, oy2+r2*cellSz); bx2.lineTo(ox2+bw*cellSz, oy2+r2*cellSz); bx2.stroke(); }
+  for (var c2 = 0; c2 <= bw; c2 += 10) { bx2.beginPath(); bx2.moveTo(ox2+c2*cellSz, oy2); bx2.lineTo(ox2+c2*cellSz, oy2+bh*cellSz); bx2.stroke(); }
+  // Axis labels
+  bx2.fillStyle = '#888'; bx2.font = '8px sans-serif'; bx2.textAlign = 'center'; bx2.textBaseline = 'middle';
+  for (var c3 = 0; c3 <= bw; c3 += 10) {
+    if (bx-1+c3 <= COLS) bx2.fillText(bx-1+c3, ox2+c3*cellSz, oy2-8);
+  }
+  bx2.textAlign = 'right';
+  for (var r3 = 0; r3 <= bh; r3 += 10) {
+    if (by-1+r3 <= ROWS) bx2.fillText(by-1+r3, ox2-3, oy2+r3*cellSz);
+  }
+
+  // Embed canvas into PDF
+  var imgData = bc.toDataURL('image/png');
+  var availW = pageW - 20, availH = pageH - 70;
+  var scale = Math.min(availW / (cW * 0.265), availH / (cH * 0.265));
+  var dw = cW * 0.265 * scale, dh = cH * 0.265 * scale;
+  pdf.addImage(imgData, 'PNG', (pageW-dw)/2, 60, dw, dh);
+
+  // Footer
+  pdf.setTextColor(100, 100, 100); pdf.setFontSize(7); pdf.setFont('helvetica', 'normal');
+  pdf.text(COLS + ' x ' + ROWS + ' | ' + (COLS/14*2.54).toFixed(1) + ' x ' + (ROWS/14*2.54).toFixed(1) + ' cm | ' + palette.length + ' colors', pageW/2, pageH-8, {align:'center'});
+  pdf.text(pageNum + ' / ' + (totalPages + 1), pageW-12, pageH-8, {align:'right'});
+}
+
+// Helper: add legend page
+function addLegendPage(pdf, mode, totalPages, pageW, pageH) {
+  pdf.addPage();
+  var subtitle = mode + (totalPages===1?' | Small (1 page)':totalPages===2?' | Medium (2 pages)':' | Large (4 pages)');
+  makePdfHeader(pdf, '', subtitle, pageW, pageH);
+
+  pdf.setTextColor(30,30,30); pdf.setFontSize(10); pdf.setFont('helvetica','bold');
+  pdf.text('Color Legend', 12, 56);
+  pdf.text('Finished: ' + (COLS/14*2.54).toFixed(1) + '" x ' + (ROWS/14*2.54).toFixed(1) + '"  (' + (COLS/14*2.54).toFixed(1) + ' x ' + (ROWS/14*2.54).toFixed(1) + ' cm)', pageW-12, 56, {align:'right'});
+
+  // Table header
+  var cnt = new Array(palette.length).fill(0);
+  for (var r=0;r<ROWS;r++) for (var c=0;c<COLS;c++) if(grid[r][c]>=0) cnt[grid[r][c]]++;
+  var used = palette.map(function(h,i){return{h:h,n:cnt[i],i:i};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
+  var total = used.reduce(function(s,x){return s+x.n;},0);
+
+  // Header row
+  var ty = 66, rowH2 = 10;
+  pdf.setFillColor(42,92,56); pdf.rect(10, ty, pageW-20, 9, 'F');
+  pdf.setTextColor(255,255,255); pdf.setFontSize(8); pdf.setFont('helvetica','bold');
+  var cols2 = [12, 22, 38, 60, 120, 150, 170];
+  ['N','Sym','DMC','Name','','Stitches','%'].forEach(function(h, hi) { pdf.text(h, cols2[hi], ty+6); });
+
+  used.forEach(function(x, idx) {
+    var d = nearDMC(x.h);
+    var ry = ty + 10 + idx * rowH2;
+    if (idx % 2 === 1) { pdf.setFillColor(245,242,236); pdf.rect(10, ry-1, pageW-20, rowH2, 'F'); }
+    pdf.setTextColor(30,30,30); pdf.setFontSize(8); pdf.setFont('helvetica','normal');
+    pdf.text('' + (idx+1), cols2[0]+1, ry+6);
+
+    // Color swatch
+    var rgb = h2r(d.hex) || [128,128,128];
+    pdf.setFillColor(rgb[0], rgb[1], rgb[2]); pdf.rect(cols2[1], ry, 8, 8, 'F');
+    pdf.setDrawColor(160,160,160); pdf.setLineWidth(0.2); pdf.rect(cols2[1], ry, 8, 8, 'S');
+
+    // Symbol inside swatch — draw to tiny canvas then embed
+    var sc2 = document.createElement('canvas'); sc2.width=16; sc2.height=16;
+    var sx2 = sc2.getContext('2d');
+    var lum2 = 0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2];
+    sx2.fillStyle = lum2>140?'#000':'#fff';
+    sx2.font = '11px "Segoe UI Symbol",Arial,sans-serif'; sx2.textAlign='center'; sx2.textBaseline='middle';
+    sx2.fillText(getSym(x.i), 8, 9);
+    pdf.addImage(sc2.toDataURL(), 'PNG', cols2[1], ry, 8, 8);
+
+    pdf.setTextColor(30,30,30); pdf.text('DMC ' + d.num, cols2[3], ry+6);
+    pdf.setTextColor(80,80,80); pdf.text(d.name.substring(0,24), cols2[4]+5, ry+6);
+    pdf.setTextColor(30,30,30); pdf.text(x.n.toLocaleString(), cols2[5]+25, ry+6, {align:'right'});
+    pdf.setTextColor(100,100,100); pdf.text((x.n/total*100).toFixed(1)+'%', cols2[6]+25, ry+6, {align:'right'});
+  });
+
+  // Footer
+  pdf.setTextColor(100,100,100); pdf.setFontSize(7);
+  pdf.text(COLS+' x '+ROWS+' | '+palette.length+' colors', pageW/2, pageH-8, {align:'center'});
+  pdf.text((totalPages+1)+' / '+(totalPages+1), pageW-12, pageH-8, {align:'right'});
+}
+
+// Helper: make preview page (page 1 of every PDF)
+function addPreviewPage(pdf, mode, subtitle, pageW, pageH) {
+  makePdfHeader(pdf, '', subtitle, pageW, pageH);
+  var prev = makePreviewCanvas();
+  var maxW = pageW - 30, maxH = pageH - 80;
+  var scale = Math.min(maxW / (prev.width * 0.265), maxH / (prev.height * 0.265));
+  var dw = prev.width * 0.265 * scale, dh = prev.height * 0.265 * scale;
+  // Border/shadow box
+  pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.5);
+  pdf.rect((pageW-dw)/2 - 1, 54, dw+2, dh+2, 'S');
+  pdf.addImage(prev.toDataURL('image/png'), 'PNG', (pageW-dw)/2, 55, dw, dh);
+}
+
+// Get block layout for S/M/L sizes
+// S = 1 page (full grid), M = 2 pages (left/right halves), L = 4 pages (quadrants)
+function getBlockLayout(size) {
+  var half = Math.ceil(COLS/2); // mid point
+  if (size === 'S') return [{bx:1,by:1,bw:COLS,bh:ROWS}];
+  if (size === 'M') return [
+    {bx:1,   by:1, bw:half,     bh:ROWS},
+    {bx:half+1,by:1,bw:COLS-half,bh:ROWS}
+  ];
+  // L: 4 quadrants
+  var halfR = Math.ceil(ROWS/2);
+  return [
+    {bx:1,      by:1,       bw:half,      bh:halfR},
+    {bx:half+1, by:1,       bw:COLS-half, bh:halfR},
+    {bx:1,      by:halfR+1, bw:half,      bh:ROWS-halfR},
+    {bx:half+1, by:halfR+1, bw:COLS-half, bh:ROWS-halfR}
+  ];
+}
+
+// Cell size for each PDF size
+function getCellSize(size) { return size==='S'?5:size==='M'?8:11; }
+
+// Main: build one PDF
+function buildPDF(mode, size) {
+  var jsPDF = window.jspdf.jsPDF;
+  var pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  var pageW = 210, pageH = 297;
+  var blocks = getBlockLayout(size);
+  var cellSz = getCellSize(size);
+  var sizeLabel = size==='S'?'Small (1 page)':size==='M'?'Medium (2 pages)':'Large (4 pages)';
+  var subtitle = mode + ' | ' + sizeLabel;
+  var totalChartPages = blocks.length;
+
+  // Page 1: Preview
+  addPreviewPage(pdf, mode, subtitle, pageW, pageH);
+  // Pages 2..N+1: Chart blocks
+  blocks.forEach(function(bl, idx) {
+    addChartPage(pdf, mode, cellSz, bl.bx, bl.by, bl.bw, bl.bh, sizeLabel, pageW, pageH, totalChartPages, idx+1);
+  });
+  // Last page: Color Legend
+  addLegendPage(pdf, mode, totalChartPages, pageW, pageH);
+
+  return pdf;
+}
+
+// Build Pattern Keeper PDF (1 page, high-res with full grid)
+function buildPatternKeeperPDF() {
+  var jsPDF = window.jspdf.jsPDF;
+  var pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  var pageW = 210, pageH = 297;
+
+  // Header
+  pdf.setFillColor(42,92,56); pdf.rect(0,0,pageW,18,'F');
+  pdf.setTextColor(255,255,255); pdf.setFontSize(11); pdf.setFont('helvetica','bold');
+  pdf.text('Cross Stitch Pattern', 8, 12);
+  pdf.setFontSize(9); pdf.setFont('helvetica','normal');
+  pdf.text('Pattern Keeper Format', pageW-8, 12, {align:'right'});
+
+  pdf.setTextColor(30,30,30); pdf.setFontSize(9);
+  pdf.text('Pattern: '+COLS+' x '+ROWS+' stitches  |  Colors: '+palette.length, 12, 28);
+  pdf.text('Finished: '+(COLS/14*2.54).toFixed(1)+' x '+(ROWS/14*2.54).toFixed(1)+' cm  |  Fabric: Aida 14 ct', 12, 37);
+
+  // Full pattern canvas
+  var sz = 6, ox = 30, oy = 18;
+  var cW = COLS*sz+ox+10, cH = ROWS*sz+oy+10;
+  var ec2 = document.createElement('canvas'); ec2.width=cW; ec2.height=cH;
+  var ex2 = ec2.getContext('2d');
+  ex2.fillStyle='#f8f4ec'; ex2.fillRect(0,0,cW,cH);
+  var cnt2 = new Array(palette.length).fill(0);
+  for (var r=0;r<ROWS;r++) for (var c=0;c<COLS;c++) {
+    var ci=grid[r][c]; var px2=ox+c*sz, py2=oy+r*sz;
+    if (ci>=0) {
+      cnt2[ci]++;
+      ex2.fillStyle=palette[ci]; ex2.fillRect(px2,py2,sz,sz);
+      var rgb=h2r(palette[ci]),lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
+      ex2.fillStyle=lum>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.85)';
+      ex2.font=(sz-1)+'px "Segoe UI Symbol",Arial,sans-serif';
+      ex2.textAlign='center'; ex2.textBaseline='middle';
+      ex2.fillText(getSym(ci),px2+sz/2,py2+sz/2);
+    }
+    ex2.strokeStyle='rgba(0,0,0,.1)'; ex2.lineWidth=0.3; ex2.strokeRect(px2,py2,sz,sz);
+  }
+  ex2.strokeStyle='rgba(0,0,0,.4)'; ex2.lineWidth=0.8;
+  for (var r2=0;r2<=ROWS;r2+=10){ex2.beginPath();ex2.moveTo(ox,oy+r2*sz);ex2.lineTo(ox+COLS*sz,oy+r2*sz);ex2.stroke();}
+  for (var c2=0;c2<=COLS;c2+=10){ex2.beginPath();ex2.moveTo(ox+c2*sz,oy);ex2.lineTo(ox+c2*sz,oy+ROWS*sz);ex2.stroke();}
+  ex2.fillStyle='#888'; ex2.font='7px sans-serif'; ex2.textAlign='center'; ex2.textBaseline='middle';
+  for (var c3=0;c3<=COLS;c3+=10){ex2.fillText(c3,ox+c3*sz,oy-6);}
+  ex2.textAlign='right';
+  for (var r3=0;r3<=ROWS;r3+=10){ex2.fillText(r3,ox-3,oy+r3*sz);}
+
+  var maxW=pageW-20, maxH=pageH-100;
+  var scale=Math.min(maxW/(cW*0.265),maxH/(cH*0.265));
+  var dw=cW*0.265*scale, dh=cH*0.265*scale;
+  pdf.addImage(ec2.toDataURL('image/png'),'PNG',(pageW-dw)/2,45,dw,dh);
+
+  // Symbol legend at bottom
+  var lY = 45+dh+6;
+  pdf.setTextColor(30,30,30); pdf.setFontSize(8); pdf.setFont('helvetica','bold');
+  pdf.text('Symbol Legend', 12, lY+5);
+  var used2 = palette.map(function(h,i){return{h:h,n:cnt2[i],i:i};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
+  var total2 = used2.reduce(function(s,x){return s+x.n;},0);
+  var cols3 = 3, colW2 = (pageW-24)/cols3;
+  used2.forEach(function(x,idx) {
+    var d=nearDMC(x.h), col3=idx%cols3, row3=Math.floor(idx/cols3);
+    var lx2=12+col3*colW2, ly2=lY+10+row3*9;
+    var rgb=h2r(d.hex)||[128,128,128];
+    pdf.setFillColor(rgb[0],rgb[1],rgb[2]); pdf.rect(lx2,ly2,7,7,'F');
+    pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.2); pdf.rect(lx2,ly2,7,7,'S');
+    var sc3=document.createElement('canvas'); sc3.width=14; sc3.height=14;
+    var sx3=sc3.getContext('2d');
+    var lum3=0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2];
+    sx3.fillStyle=lum3>140?'#000':'#fff';
+    sx3.font='10px "Segoe UI Symbol",Arial,sans-serif'; sx3.textAlign='center'; sx3.textBaseline='middle';
+    sx3.fillText(getSym(x.i),7,7);
+    pdf.addImage(sc3.toDataURL(),'PNG',lx2,ly2,7,7);
+    pdf.setTextColor(50,50,50); pdf.setFontSize(7); pdf.setFont('helvetica','normal');
+    pdf.text('DMC '+d.num+' '+d.name.substring(0,16)+' ('+x.n+')', lx2+9, ly2+5);
+  });
+
+  pdf.setTextColor(100,100,100); pdf.setFontSize(7);
+  pdf.text(COLS+' x '+ROWS+' | '+palette.length+' colors', pageW/2, pageH-8, {align:'center'});
+  return pdf;
+}
+
+// Main export function — triggers all 8 PDFs sequentially
+function exportAllPDF() {
+  if (!palette.length) { alert('Convert รูปก่อนนะคะ'); return; }
+  if (!window.jspdf) { alert('กำลังโหลด jsPDF library...'); return; }
+
+  var prog = document.getElementById('pdf-progress');
+  prog.style.display = 'block';
+
+  var files = [
+    {mode:'Black & White', size:'S', name:'cross-stitch-bw-S.pdf'},
+    {mode:'Black & White', size:'M', name:'cross-stitch-bw-M.pdf'},
+    {mode:'Black & White', size:'L', name:'cross-stitch-bw-L.pdf'},
+    {mode:'Color',         size:'S', name:'cross-stitch-color-S.pdf'},
+    {mode:'Color',         size:'M', name:'cross-stitch-color-M.pdf'},
+    {mode:'Color',         size:'L', name:'cross-stitch-color-L.pdf'},
+  ];
+
+  var idx = 0;
+  function next() {
+    if (idx < files.length) {
+      var f = files[idx++];
+      prog.textContent = 'กำลัง export ' + f.name + ' (' + idx + '/8)...';
+      setTimeout(function() {
+        var pdf = buildPDF(f.mode, f.size);
+        pdf.save(f.name);
+        next();
+      }, 200);
+    } else {
+      // Pattern Keeper PDF
+      prog.textContent = 'กำลัง export pattern-keeper.pdf (7/8)...';
+      setTimeout(function() {
+        buildPatternKeeperPDF().save('pattern-keeper.pdf');
+        // Floss list PDF (page 8)
+        prog.textContent = 'กำลัง export floss-list.pdf (8/8)...';
+        setTimeout(function() {
+          buildFossListPDF().save('floss-list.pdf');
+          prog.textContent = '✅ Export ครบ 8 ไฟล์แล้ว!';
+          setTimeout(function(){prog.style.display='none';},3000);
+        }, 200);
+      }, 200);
+    }
+  }
+  next();
+}
+
+// Build Floss List PDF
+function buildFossListPDF() {
+  var jsPDF = window.jspdf.jsPDF;
+  var pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  var pageW=210, pageH=297;
+
+  pdf.setFillColor(42,92,56); pdf.rect(0,0,pageW,18,'F');
+  pdf.setTextColor(255,255,255); pdf.setFontSize(11); pdf.setFont('helvetica','bold');
+  pdf.text('Cross Stitch Pattern', 8, 12);
+  pdf.setFontSize(9); pdf.setFont('helvetica','normal');
+  pdf.text('Floss / Thread List', pageW-8, 12, {align:'right'});
+
+  var cnt=new Array(palette.length).fill(0);
+  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++) if(grid[r][c]>=0) cnt[grid[r][c]]++;
+  var used=palette.map(function(h,i){return{h:h,n:cnt[i],i:i};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
+  var total=used.reduce(function(s,x){return s+x.n;},0);
+
+  pdf.setTextColor(30,30,30); pdf.setFontSize(9);
+  pdf.text('Pattern: '+COLS+' x '+ROWS+' stitches  |  '+used.length+' DMC colors required', 12, 28);
+  pdf.text('Finished: '+(COLS/14*2.54).toFixed(1)+' x '+(ROWS/14*2.54).toFixed(1)+' cm  |  Fabric: Aida 14 ct', 12, 37);
+
+  // Table header
+  var ty=46, rowH=10;
+  pdf.setFillColor(42,92,56); pdf.rect(10,ty,pageW-20,9,'F');
+  pdf.setTextColor(255,255,255); pdf.setFontSize(8); pdf.setFont('helvetica','bold');
+  var cx=[14,28,44,65,125,158,176];
+  ['N','','DMC','Name','','Stitches','%'].forEach(function(h,hi){pdf.text(h,cx[hi],ty+6);});
+
+  used.forEach(function(x,idx2) {
+    var d=nearDMC(x.h);
+    var ry=ty+10+idx2*rowH;
+    if(idx2%2===1){pdf.setFillColor(245,242,236);pdf.rect(10,ry-1,pageW-20,rowH,'F');}
+    pdf.setTextColor(30,30,30); pdf.setFontSize(8); pdf.setFont('helvetica','normal');
+    pdf.text(''+(idx2+1), cx[0]+1, ry+6);
+    var rgb=h2r(d.hex)||[128,128,128];
+    pdf.setFillColor(rgb[0],rgb[1],rgb[2]); pdf.rect(cx[1],ry,8,8,'F');
+    pdf.setDrawColor(160,160,160); pdf.setLineWidth(0.2); pdf.rect(cx[1],ry,8,8,'S');
+    var sc4=document.createElement('canvas'); sc4.width=16; sc4.height=16;
+    var sx4=sc4.getContext('2d');
+    var lum4=0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2];
+    sx4.fillStyle=lum4>140?'#000':'#fff';
+    sx4.font='11px "Segoe UI Symbol",Arial,sans-serif'; sx4.textAlign='center'; sx4.textBaseline='middle';
+    sx4.fillText(getSym(x.i),8,9);
+    pdf.addImage(sc4.toDataURL(),'PNG',cx[1],ry,8,8);
+    pdf.setTextColor(30,30,30); pdf.text('DMC '+d.num, cx[2], ry+6);
+    pdf.setTextColor(80,80,80); pdf.text(d.name.substring(0,28), cx[3], ry+6);
+    pdf.setTextColor(30,30,30); pdf.text(x.n.toLocaleString(), cx[5]+20, ry+6, {align:'right'});
+    pdf.setTextColor(100,100,100); pdf.text((x.n/total*100).toFixed(1)+'%', cx[6]+20, ry+6, {align:'right'});
+    pdf.setDrawColor(220,220,210); pdf.setLineWidth(0.2);
+    pdf.line(10, ry+rowH-1, pageW-10, ry+rowH-1);
+  });
+
+  pdf.setTextColor(100,100,100); pdf.setFontSize(7);
+  pdf.text(COLS+' x '+ROWS+' | '+palette.length+' colors', pageW/2, pageH-8, {align:'center'});
+  return pdf;
 }
 
 // ── Quick block size hint (runs after image load) ──
@@ -1236,7 +1794,7 @@ function boot(){
   // Reference panel setup
   refCV=document.getElementById('ref-cv');
   refCTX=refCV?refCV.getContext('2d'):null;
-
+  initRefEvents();
 }
 
 // ─── Reference Panel Functions (global) ───
@@ -1248,16 +1806,34 @@ function renderRef(){
   var wrap=document.getElementById('ref-wrap');
   var dw=(wrap&&wrap.clientWidth>10)?wrap.clientWidth:350;
   var dh=(wrap&&wrap.clientHeight>10)?wrap.clientHeight:400;
+  // Canvas fills the container exactly
   refCV.width=dw;refCV.height=dh;
   refCV.style.width=dw+'px';refCV.style.height=dh+'px';
   refCTX.fillStyle='#e0dbd0';refCTX.fillRect(0,0,dw,dh);
   if(!refNatW||!refNatH)return;
-  var visW=Math.min(dw/refZL,refNatW);
-  var visH=Math.min(dh/refZL,refNatH);
+  // How many source pixels are visible at current zoom (maintain aspect ratio)
+  var visW=dw/refZL; // source pixels wide shown in panel
+  var visH=dh/refZL; // source pixels tall shown in panel
+  // Clamp to image bounds
+  visW=Math.min(visW,refNatW);
+  visH=Math.min(visH,refNatH);
   var sx=Math.max(0,Math.min(refNatW-visW,refVX));
   var sy=Math.max(0,Math.min(refNatH-visH,refVY));
-  refCTX.imageSmoothingEnabled=true;
-  refCTX.drawImage(imgSrc,sx,sy,visW,visH,0,0,dw,dh);
+  // Draw source region into full canvas — canvas aspect = panel aspect, source aspect preserved by letterboxing
+  // Use contain-style: scale source region to fit inside panel keeping its own ratio
+  var srcAR=visW/visH, panAR=dw/dh;
+  var destW,destH,destX,destY;
+  if(srcAR>panAR){
+    destW=dw; destH=Math.round(dw/srcAR);
+    destX=0;  destY=Math.round((dh-destH)/2);
+  } else {
+    destH=dh; destW=Math.round(dh*srcAR);
+    destY=0;  destX=Math.round((dw-destW)/2);
+  }
+  refCTX.imageSmoothingEnabled=(refZL<2);
+  refCTX.drawImage(imgSrc,sx,sy,visW,visH,destX,destY,destW,destH);
+  // Store render info for accurate eyedropper hit-testing
+  refCV._renderInfo={sx:sx,sy:sy,visW:visW,visH:visH,destX:destX,destY:destY,destW:destW,destH:destH};
 }
 
 window.toggleRef=function(){
@@ -1273,8 +1849,8 @@ window.refFit=function(){
   if(!refNatW||!refNatH)return;
   var wrap=document.getElementById('ref-wrap');
   var dw=wrap?wrap.clientWidth:350, dh=wrap?wrap.clientHeight:400;
-  // Fit entire image in panel
-  refZL=Math.min(dw/refNatW, dh/refNatH, 1);
+  // Find the zoom level where the whole image fits inside the panel (contain)
+  refZL=Math.min(dw/refNatW, dh/refNatH);
   refVX=0;refVY=0;
   renderRef();
 };
@@ -1287,80 +1863,125 @@ window.toggleRefPick=function(){
   else{btn.classList.remove('active');cv.classList.remove('ref-picking');}
 };
 
-if(refCV){
-  // Pan
+// Helper: convert canvas mouse position → source image pixel coordinate
+function refCanvasToPx(clientX,clientY){
+  var rc=refCV.getBoundingClientRect();
+  var cx=clientX-rc.left;
+  var cy=clientY-rc.top;
+  var ri=refCV._renderInfo;
+  if(!ri){
+    // Fallback: simple full-canvas mapping (no letterbox info yet)
+    return[Math.round(cx/refZL+refVX),Math.round(cy/refZL+refVY)];
+  }
+  // Map canvas pixel → source image pixel using stored render rect
+  var px=ri.sx+((cx-ri.destX)/ri.destW)*ri.visW;
+  var py=ri.sy+((cy-ri.destY)/ri.destH)*ri.visH;
+  px=Math.max(0,Math.min(refNatW-1,Math.round(px)));
+  py=Math.max(0,Math.min(refNatH-1,Math.round(py)));
+  return[px,py];
+}
+
+function pickRefColor(clientX,clientY,commit){
+  if(!imgSrc)return;
+  var coords=refCanvasToPx(clientX,clientY);
+  var px=coords[0],py=coords[1];
+  var pc=document.createElement('canvas');pc.width=1;pc.height=1;
+  var px2=pc.getContext('2d');
+  px2.imageSmoothingEnabled=false;
+  px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
+  var id=px2.getImageData(0,0,1,1).data;
+  // Skip transparent pixels
+  if(id[3]<128)return;
+  var hex=r2h(id[0],id[1],id[2]);
+  var d=nearDMC(hex);
+  // Update hover preview
+  var dot=document.getElementById('ref-color-dot');
+  var txt=document.getElementById('ref-color-txt');
+  var prev=document.getElementById('ref-color-preview');
+  prev.style.display='flex';
+  dot.style.background=d.hex;
+  txt.textContent='DMC '+d.num+' '+d.name;
+  if(commit){
+    // Add to palette if not already present, then select it
+    if(palette.indexOf(d.hex)<0){
+      palette.push(d.hex);
+      dmcCache={};
+    }
+    SI=palette.indexOf(d.hex);
+    updPal();   // refresh palette strip
+    render();   // repaint grid so new color is usable immediately
+
+    // Auto-exit pick mode → pan works right away
+    refPicking=false;
+    var btn=document.getElementById('ref-pick-btn');
+    var cv=document.getElementById('ref-cv');
+    var wrap=document.getElementById('ref-wrap');
+    if(btn)btn.classList.remove('active');
+    if(cv)cv.classList.remove('ref-picking');
+    if(wrap)wrap.style.cursor='crosshair';
+
+    // Switch to paint tool so user can start painting immediately
+    var pbtn=document.getElementById('t-paint');
+    if(pbtn)setTool('paint',pbtn);
+  }
+}
+
+function initRefEvents(){
+  if(!refCV)return;
   var refDrag=false,refDragSt=null;
+  var wrap=document.getElementById('ref-wrap');
   refCV.addEventListener('mousedown',function(e){
     if(refPicking){
-      // Pick color from reference image
-      var rc=refCV.getBoundingClientRect();
-      var px=(e.clientX-rc.left)/refZL+refVX;
-      var py=(e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY;
-      px=Math.max(0,Math.min(refNatW-1,Math.round(px)));
-      py=Math.max(0,Math.min(refNatH-1,Math.round(py)));
-      // Get pixel color from source
-      var pc=document.createElement('canvas');pc.width=1;pc.height=1;
-      var px2=pc.getContext('2d');
-      px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
-      var id=px2.getImageData(0,0,1,1).data;
-      var hex=r2h(id[0],id[1],id[2]);
-      // Add to palette if not exists
-      var d=nearDMC(hex);
-      var dmcHex=d.hex;
-      if(palette.indexOf(dmcHex)<0){palette.push(dmcHex);dmcCache={};}
-      SI=palette.indexOf(dmcHex);
-      updPal();
-      // Show preview
-      var prev=document.getElementById('ref-color-preview');
-      var dot=document.getElementById('ref-color-dot');
-      var txt=document.getElementById('ref-color-txt');
-      prev.style.display='flex';
-      dot.style.background=dmcHex;
-      txt.textContent='DMC '+d.num+' '+d.name;
-      // Auto switch to paint tool
-      var pbtn=document.getElementById('t-paint');
-      if(pbtn)setTool('paint',pbtn);
+      pickRefColor(e.clientX,e.clientY,true);
     } else {
       refDrag=true;
       refDragSt={x:e.clientX,y:e.clientY,vx:refVX,vy:refVY};
+      if(wrap)wrap.style.cursor='grabbing';
     }
   });
   refCV.addEventListener('mousemove',function(e){
     if(refDrag&&refDragSt){
-      var dxPx=(e.clientX-refDragSt.x)/refZL;
-      var dyPx=(e.clientY-refDragSt.y)*refNatH/refCV.height/refZL;
-      refVX=Math.max(0,refDragSt.vx-dxPx);
-      refVY=Math.max(0,refDragSt.vy-dyPx);
+      var ri=refCV._renderInfo;
+      // Pan: mouse moves right → image shifts right → viewport origin moves LEFT (subtract)
+      var scaleX=ri?ri.visW/ri.destW:1/refZL;
+      var scaleY=ri?ri.visH/ri.destH:1/refZL;
+      var newVX=refDragSt.vx-(e.clientX-refDragSt.x)*scaleX;
+      var newVY=refDragSt.vy-(e.clientY-refDragSt.y)*scaleY;
+      refVX=Math.max(0,Math.min(refNatW-(ri?ri.visW:0),newVX));
+      refVY=Math.max(0,Math.min(refNatH-(ri?ri.visH:0),newVY));
       renderRef();
     }
     if(refPicking){
-      // Show color under cursor
-      var rc=refCV.getBoundingClientRect();
-      var px=Math.round((e.clientX-rc.left)/refZL+refVX);
-      var py=Math.round((e.clientY-rc.top)*refNatH/refCV.height/refZL+refVY);
-      px=Math.max(0,Math.min(refNatW-1,px));
-      py=Math.max(0,Math.min(refNatH-1,py));
-      var pc=document.createElement('canvas');pc.width=1;pc.height=1;
-      var px2=pc.getContext('2d');
-      px2.drawImage(imgSrc,px,py,1,1,0,0,1,1);
-      var id=px2.getImageData(0,0,1,1).data;
-      var hex=r2h(id[0],id[1],id[2]);
-      var d=nearDMC(hex);
-      var dot=document.getElementById('ref-color-dot');
-      var txt=document.getElementById('ref-color-txt');
-      var prev=document.getElementById('ref-color-preview');
-      prev.style.display='flex';
-      dot.style.background=d.hex;
-      txt.textContent='DMC '+d.num+' '+d.name;
+      pickRefColor(e.clientX,e.clientY,false);
     }
   });
-  refCV.addEventListener('mouseup',function(){refDrag=false;});
+  refCV.addEventListener('mouseup',function(){
+    refDrag=false;
+    if(wrap)wrap.style.cursor='crosshair';
+  });
+  refCV.addEventListener('mouseleave',function(){
+    refDrag=false;
+    if(wrap)wrap.style.cursor='crosshair';
+  });
   refCV.addEventListener('wheel',function(e){
     e.preventDefault();
-    refZL=Math.max(0.5,Math.min(20,refZL*(e.deltaY<0?1.2:1/1.2)));
+    var coords=refCanvasToPx(e.clientX,e.clientY);
+    var factor=e.deltaY<0?1.2:1/1.2;
+    var newZL=Math.max(0.1,Math.min(40,refZL*factor));
+    var ri=refCV._renderInfo;
+    if(ri){
+      var frac=[(coords[0]-ri.sx)/ri.visW,(coords[1]-ri.sy)/ri.visH];
+      var dw2=ri.destW, dh2=ri.destH;
+      var newVisW=dw2/newZL, newVisH=dh2/newZL;
+      newVisW=Math.min(newVisW,refNatW); newVisH=Math.min(newVisH,refNatH);
+      refVX=Math.max(0,coords[0]-frac[0]*newVisW);
+      refVY=Math.max(0,coords[1]-frac[1]*newVisH);
+    }
+    refZL=newZL;
     renderRef();
   },{passive:false});
 }
+
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);
 else setTimeout(boot,0);
 </script>
