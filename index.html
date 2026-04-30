@@ -1156,90 +1156,63 @@ function exportFlossList(){
 function dl(canvas,name){var a=document.createElement('a');a.download=name;a.href=canvas.toDataURL();a.click();}
 
 function exportPatternKeeper(){
-  // Pattern Keeper format: high-res PNG with clear grid + symbol legend
-  // Optimized for import into Pattern Keeper / MyThreadwork apps
-  var sz=20; // pixels per stitch
-  var W=COLS*sz, H=ROWS*sz;
-  var legRows=Math.ceil(palette.length/2)+2;
-  var legH=legRows*22+30;
-  var ec=document.createElement('canvas');
-  ec.width=W+120; // extra space for row numbers
-  ec.height=H+120+legH;
-  var ex=ec.getContext('2d');
-  
-  // White background
-  ex.fillStyle='#ffffff';ex.fillRect(0,0,ec.width,ec.height);
-  
-  // Title
-  ex.fillStyle='#1a1208';ex.font='bold 14px serif';ex.textAlign='left';
-  ex.fillText('Cross Stitch Pattern  '+COLS+'×'+ROWS+' stitches  '+palette.length+' colors',10,20);
-  ex.font='11px sans-serif';ex.fillStyle='#666';
-  ex.fillText('Fabric: Aida 14ct  Size: '+(COLS/14*2.54).toFixed(1)+'×'+(ROWS/14*2.54).toFixed(1)+' cm',10,36);
-  
-  var ox=50, oy=50; // offset for row/col numbers
-  
-  // Draw stitches
+  var DPR = 3, sz = 40;
+  var W = COLS*sz, H = ROWS*sz;
+  var legRows = Math.ceil(palette.length/2)+2;
+  var legH = legRows*32+50;
+  var ox = 70, oy = 70;
+  var totalW = ox + W + 40, totalH = oy + H + 50 + legH;
+  var ec = document.createElement('canvas');
+  ec.width = totalW*DPR; ec.height = totalH*DPR;
+  var ex = ec.getContext('2d');
+  ex.scale(DPR, DPR);
+  ex.fillStyle='#ffffff'; ex.fillRect(0,0,totalW,totalH);
+  ex.fillStyle='#1a1208'; ex.font='bold 16px serif'; ex.textAlign='left'; ex.textBaseline='alphabetic';
+  ex.fillText('Cross Stitch Pattern  '+COLS+'x'+ROWS+'  '+palette.length+' colors',10,24);
+  ex.font='12px sans-serif'; ex.fillStyle='#666';
+  ex.fillText('Aida 14ct  '+(COLS/14*2.54).toFixed(1)+'x'+(ROWS/14*2.54).toFixed(1)+' cm',10,42);
   var cnt=new Array(palette.length).fill(0);
-  for(var r=0;r<ROWS;r++){
-    for(var c=0;c<COLS;c++){
-      var ci=grid[r][c];
-      var px2=ox+c*sz, py2=oy+r*sz;
-      if(ci>=0&&ci<palette.length){
-        cnt[ci]++;
-        ex.fillStyle=palette[ci];
-        ex.fillRect(px2,py2,sz,sz);
-        // Symbol
-        var rgb2=h2r(palette[ci]);
-        var lum2=rgb2?0.299*rgb2[0]+0.587*rgb2[1]+0.114*rgb2[2]:128;
-        ex.fillStyle=lum2>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
-        ex.font='bold '+(sz-6)+'px monospace';
-        ex.textAlign='center';ex.textBaseline='middle';
-        ex.font=(sz-2)+'px "Segoe UI Symbol",Arial,sans-serif';
-        ex.fillText(getSym(ci),px2+sz/2,py2+sz/2);
-      }
-      // Cell border
-      ex.strokeStyle='rgba(0,0,0,.08)';ex.lineWidth=0.5;
-      ex.strokeRect(px2,py2,sz,sz);
+  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){
+    var ci=grid[r][c], px2=ox+c*sz, py2=oy+r*sz;
+    if(ci>=0&&ci<palette.length){
+      cnt[ci]++;
+      ex.fillStyle=palette[ci]; ex.fillRect(px2,py2,sz,sz);
+      var rgb2=h2r(palette[ci]),lum2=rgb2?0.299*rgb2[0]+0.587*rgb2[1]+0.114*rgb2[2]:128;
+      ex.fillStyle=lum2>145?'rgba(0,0,0,.88)':'rgba(255,255,255,.95)';
+      var fSz=Math.round(sz*0.64);
+      ex.font='bold '+fSz+'px "Segoe UI Symbol","Apple Symbols",Arial,sans-serif';
+      ex.textAlign='center'; ex.textBaseline='middle';
+      ex.fillText(getSym(ci),px2+sz/2,py2+sz/2);
     }
+    ex.strokeStyle='rgba(0,0,0,.1)'; ex.lineWidth=0.4; ex.strokeRect(px2,py2,sz,sz);
   }
-  
-  // Bold 10-grid lines
-  ex.strokeStyle='rgba(0,0,0,.35)';ex.lineWidth=1;
-  for(var r2=0;r2<=ROWS;r2+=10){
-    ex.beginPath();ex.moveTo(ox,oy+r2*sz);ex.lineTo(ox+COLS*sz,oy+r2*sz);ex.stroke();
-  }
-  for(var c2=0;c2<=COLS;c2+=10){
-    ex.beginPath();ex.moveTo(ox+c2*sz,oy);ex.lineTo(ox+c2*sz,oy+ROWS*sz);ex.stroke();
-  }
-  
-  // Row/col numbers every 10
-  ex.fillStyle='#888';ex.font='9px sans-serif';ex.textAlign='center';ex.textBaseline='middle';
-  for(var c3=0;c3<=COLS;c3+=10){ex.fillText(c3,ox+c3*sz,oy-12);}
+  ex.strokeStyle='rgba(0,0,0,.45)'; ex.lineWidth=1.1;
+  for(var r2=0;r2<=ROWS;r2+=10){ex.beginPath();ex.moveTo(ox,oy+r2*sz);ex.lineTo(ox+W,oy+r2*sz);ex.stroke();}
+  for(var c2=0;c2<=COLS;c2+=10){ex.beginPath();ex.moveTo(ox+c2*sz,oy);ex.lineTo(ox+c2*sz,oy+H);ex.stroke();}
+  ex.strokeStyle='rgba(0,0,0,.65)'; ex.lineWidth=1.6; ex.strokeRect(ox,oy,W,H);
+  ex.fillStyle='#555'; ex.font='bold 11px sans-serif';
+  ex.textAlign='center'; ex.textBaseline='middle';
+  for(var c3=0;c3<=COLS;c3+=10){ex.fillText(c3,ox+c3*sz,oy-18);}
   ex.textAlign='right';
-  for(var r3=0;r3<=ROWS;r3+=10){ex.fillText(r3,ox-6,oy+r3*sz);}
-  
-  // Legend
-  var lY=oy+ROWS*sz+20;
-  ex.fillStyle='#1a1208';ex.font='bold 11px sans-serif';ex.textAlign='left';ex.textBaseline='alphabetic';
-  ex.fillText('Thread List:',ox,lY+12);
-  lY+=24;
+  for(var r3=0;r3<=ROWS;r3+=10){ex.fillText(r3,ox-8,oy+r3*sz);}
+  var lY=oy+H+32;
+  ex.fillStyle='#1a1208'; ex.font='bold 14px sans-serif'; ex.textAlign='left'; ex.textBaseline='alphabetic';
+  ex.fillText('Thread List:',ox,lY); lY+=28;
+  var legColW=Math.floor((W+40)/2);
   palette.forEach(function(h,i){
     if(!cnt[i])return;
-    var d=nearDMC(h);
-    var col=i%2, row2=Math.floor(i/2);
-    var lx=ox+col*(W/2+40), ly=lY+row2*22;
-    // Color swatch
-    ex.fillStyle=d.hex;ex.fillRect(lx,ly,16,16);
-    ex.strokeStyle='#999';ex.lineWidth=0.5;ex.strokeRect(lx,ly,16,16);
-    var rgb3=h2r(d.hex);var lum3=rgb3?0.299*rgb3[0]+0.587*rgb3[1]+0.114*rgb3[2]:128;
-    ex.fillStyle=lum3>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.9)';
-    ex.font='bold 9px monospace';ex.textAlign='center';ex.textBaseline='middle';
-    ex.fillText(getSym(i),lx+8,ly+8);
-    // DMC info
-    ex.fillStyle='#222';ex.font='10px sans-serif';ex.textAlign='left';ex.textBaseline='alphabetic';
-    ex.fillText('DMC '+d.num+' - '+d.name.substring(0,22)+' ('+cnt[i]+')',lx+20,ly+11);
+    var d=nearDMC(h),col=i%2,row2=Math.floor(i/2);
+    var lx=ox+col*legColW,ly=lY+row2*30,swSz=24;
+    ex.fillStyle=d.hex; ex.fillRect(lx,ly,swSz,swSz);
+    ex.strokeStyle='#999'; ex.lineWidth=0.7; ex.strokeRect(lx,ly,swSz,swSz);
+    var rgb3=h2r(d.hex),lum3=rgb3?0.299*rgb3[0]+0.587*rgb3[1]+0.114*rgb3[2]:128;
+    ex.fillStyle=lum3>145?'rgba(0,0,0,.88)':'rgba(255,255,255,.95)';
+    ex.font='bold 14px "Segoe UI Symbol","Apple Symbols",Arial,sans-serif';
+    ex.textAlign='center'; ex.textBaseline='middle';
+    ex.fillText(getSym(i),lx+swSz/2,ly+swSz/2);
+    ex.fillStyle='#222'; ex.font='12px sans-serif'; ex.textAlign='left'; ex.textBaseline='alphabetic';
+    ex.fillText('DMC '+d.num+' - '+d.name.substring(0,24)+' ('+cnt[i]+')',lx+swSz+6,ly+swSz/2+4);
   });
-  
   dl(ec,'pattern-keeper.png');
 }
 
@@ -1379,15 +1352,15 @@ function addChartPage(pdf, mode, sz, bx, by, bw, bh, pageLabel, pageW, pageH, to
   if (pageNum > 1) pdf.addPage();
   makePdfHeader(pdf, '', mode + ' | ' + pageLabel, pageW, pageH);
 
-  // Block label
   pdf.setTextColor(30, 30, 30); pdf.setFontSize(9); pdf.setFont('helvetica', 'bold');
   pdf.text('Chart Block ' + pageNum + ' / ' + totalPages + '  X:' + bx + '-' + (bx+bw-1) + '  Y:' + by + '-' + (by+bh-1), pageW/2, 56, {align:'center'});
 
-  // Render block to canvas
-  var cellSz = sz;
-  var ox2 = 24, oy2 = 20;
-  var cW = bw * cellSz + ox2 + 16;
-  var cH = bh * cellSz + oy2 + 16;
+  var DPR = 4;
+  var cellSz = sz * DPR;
+  var ox2 = 14 * DPR; // small left margin for axis labels
+  var oy2 = 14 * DPR; // small top margin for axis labels
+  var cW = bw * cellSz + ox2 + 4 * DPR;
+  var cH = bh * cellSz + oy2 + 4 * DPR;
   var bc = document.createElement('canvas'); bc.width = cW; bc.height = cH;
   var bx2 = bc.getContext('2d');
   bx2.fillStyle = '#ffffff'; bx2.fillRect(0, 0, cW, cH);
@@ -1399,39 +1372,45 @@ function addChartPage(pdf, mode, sz, bx, by, bw, bh, pageLabel, pageW, pageH, to
       var ci = grid[gr][gc];
       var px2 = ox2 + col * cellSz, py2 = oy2 + row * cellSz;
       if (ci >= 0) {
-        if (mode === 'Color') { bx2.fillStyle = palette[ci]; bx2.fillRect(px2, py2, cellSz, cellSz); }
+        if (mode === 'Color') {
+          bx2.fillStyle = palette[ci];
+          bx2.fillRect(px2, py2, cellSz, cellSz);
+        }
         var rgb = h2r(palette[ci]), lum = rgb ? 0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2] : 128;
-        bx2.fillStyle = mode === 'Color' ? (lum>140?'rgba(0,0,0,.85)':'rgba(255,255,255,.95)') : '#1a1a1a';
-        bx2.font = Math.max(5, cellSz-2) + 'px "Segoe UI Symbol",Arial,sans-serif';
+        bx2.fillStyle = mode === 'Color'
+          ? (lum > 140 ? 'rgba(0,0,0,.88)' : 'rgba(255,255,255,.95)')
+          : '#1a1a1a';
+        bx2.font = 'bold ' + Math.max(8, cellSz - 4) + 'px "Segoe UI Symbol","Apple Symbols",Arial,sans-serif';
         bx2.textAlign = 'center'; bx2.textBaseline = 'middle';
         bx2.fillText(getSym(ci), px2 + cellSz/2, py2 + cellSz/2);
       }
       bx2.strokeStyle = mode === 'Color' ? 'rgba(0,0,0,.13)' : 'rgba(0,0,0,.22)';
-      bx2.lineWidth = 0.4; bx2.strokeRect(px2, py2, cellSz, cellSz);
+      bx2.lineWidth = 0.5 * DPR;
+      bx2.strokeRect(px2, py2, cellSz, cellSz);
     }
   }
-  // Bold 10-lines
-  bx2.strokeStyle = 'rgba(0,0,0,.5)'; bx2.lineWidth = 0.8;
+  bx2.strokeStyle = 'rgba(0,0,0,.55)'; bx2.lineWidth = 1.0 * DPR;
   for (var r2 = 0; r2 <= bh; r2 += 10) { bx2.beginPath(); bx2.moveTo(ox2, oy2+r2*cellSz); bx2.lineTo(ox2+bw*cellSz, oy2+r2*cellSz); bx2.stroke(); }
   for (var c2 = 0; c2 <= bw; c2 += 10) { bx2.beginPath(); bx2.moveTo(ox2+c2*cellSz, oy2); bx2.lineTo(ox2+c2*cellSz, oy2+bh*cellSz); bx2.stroke(); }
-  // Axis labels
-  bx2.fillStyle = '#888'; bx2.font = '8px sans-serif'; bx2.textAlign = 'center'; bx2.textBaseline = 'middle';
+  bx2.strokeStyle = 'rgba(0,0,0,.7)'; bx2.lineWidth = 1.5 * DPR;
+  bx2.strokeRect(ox2, oy2, bw*cellSz, bh*cellSz);
+  bx2.fillStyle = '#666'; bx2.font = 'bold ' + (8*DPR) + 'px sans-serif';
+  bx2.textAlign = 'center'; bx2.textBaseline = 'middle';
   for (var c3 = 0; c3 <= bw; c3 += 10) {
-    if (bx-1+c3 <= COLS) bx2.fillText(bx-1+c3, ox2+c3*cellSz, oy2-8);
+    if (bx-1+c3 <= COLS) bx2.fillText(bx-1+c3, ox2+c3*cellSz, oy2 - 7*DPR);
   }
   bx2.textAlign = 'right';
   for (var r3 = 0; r3 <= bh; r3 += 10) {
-    if (by-1+r3 <= ROWS) bx2.fillText(by-1+r3, ox2-3, oy2+r3*cellSz);
+    if (by-1+r3 <= ROWS) bx2.fillText(by-1+r3, ox2 - 3*DPR, oy2+r3*cellSz);
   }
 
-  // Embed canvas into PDF
   var imgData = bc.toDataURL('image/png');
-  var availW = pageW - 20, availH = pageH - 70;
-  var scale = Math.min(availW / (cW * 0.265), availH / (cH * 0.265));
-  var dw = cW * 0.265 * scale, dh = cH * 0.265 * scale;
+  var availW = pageW - 16, availH = pageH - 72;
+  var logW = cW / DPR * 0.265, logH = cH / DPR * 0.265;
+  var scale = Math.min(availW / logW, availH / logH);
+  var dw = logW * scale, dh = logH * scale;
   pdf.addImage(imgData, 'PNG', (pageW-dw)/2, 60, dw, dh);
 
-  // Footer
   pdf.setTextColor(100, 100, 100); pdf.setFontSize(7); pdf.setFont('helvetica', 'normal');
   pdf.text(COLS + ' x ' + ROWS + ' | ' + (COLS/14*2.54).toFixed(1) + ' x ' + (ROWS/14*2.54).toFixed(1) + ' cm | ' + palette.length + ' colors', pageW/2, pageH-8, {align:'center'});
   pdf.text(pageNum + ' / ' + (totalPages + 1), pageW-12, pageH-8, {align:'right'});
@@ -1472,13 +1451,14 @@ function addLegendPage(pdf, mode, totalPages, pageW, pageH) {
     pdf.setFillColor(rgb[0], rgb[1], rgb[2]); pdf.rect(cols2[1], ry, 8, 8, 'F');
     pdf.setDrawColor(160,160,160); pdf.setLineWidth(0.2); pdf.rect(cols2[1], ry, 8, 8, 'S');
 
-    // Symbol inside swatch — draw to tiny canvas then embed
-    var sc2 = document.createElement('canvas'); sc2.width=16; sc2.height=16;
+    // Symbol inside swatch — 4× larger canvas for crisp rendering
+    var sc2 = document.createElement('canvas'); sc2.width=40; sc2.height=40;
     var sx2 = sc2.getContext('2d');
     var lum2 = 0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2];
-    sx2.fillStyle = lum2>140?'#000':'#fff';
-    sx2.font = '11px "Segoe UI Symbol",Arial,sans-serif'; sx2.textAlign='center'; sx2.textBaseline='middle';
-    sx2.fillText(getSym(x.i), 8, 9);
+    sx2.fillStyle = lum2>140?'rgba(0,0,0,.9)':'rgba(255,255,255,.95)';
+    sx2.font = 'bold 28px "Segoe UI Symbol","Apple Symbols",Arial,sans-serif';
+    sx2.textAlign='center'; sx2.textBaseline='middle';
+    sx2.fillText(getSym(x.i), 20, 21);
     pdf.addImage(sc2.toDataURL(), 'PNG', cols2[1], ry, 8, 8);
 
     pdf.setTextColor(30,30,30); pdf.text('DMC ' + d.num, cols2[3], ry+6);
@@ -1557,69 +1537,78 @@ function buildPatternKeeperPDF() {
   var pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
   var pageW = 210, pageH = 297;
 
-  // Header
   pdf.setFillColor(42,92,56); pdf.rect(0,0,pageW,18,'F');
   pdf.setTextColor(255,255,255); pdf.setFontSize(11); pdf.setFont('helvetica','bold');
   pdf.text('Cross Stitch Pattern', 8, 12);
   pdf.setFontSize(9); pdf.setFont('helvetica','normal');
   pdf.text('Pattern Keeper Format', pageW-8, 12, {align:'right'});
-
   pdf.setTextColor(30,30,30); pdf.setFontSize(9);
   pdf.text('Pattern: '+COLS+' x '+ROWS+' stitches  |  Colors: '+palette.length, 12, 28);
   pdf.text('Finished: '+(COLS/14*2.54).toFixed(1)+' x '+(ROWS/14*2.54).toFixed(1)+' cm  |  Fabric: Aida 14 ct', 12, 37);
 
-  // Full pattern canvas
-  var sz = 6, ox = 30, oy = 18;
-  var cW = COLS*sz+ox+10, cH = ROWS*sz+oy+10;
+  // High-DPR canvas — crisp symbols
+  var DPR = 4, sz = 14;
+  var ox = 12*DPR, oy = 12*DPR;
+  var cW = COLS*sz*DPR + ox + 4*DPR;
+  var cH = ROWS*sz*DPR + oy + 4*DPR;
   var ec2 = document.createElement('canvas'); ec2.width=cW; ec2.height=cH;
   var ex2 = ec2.getContext('2d');
-  ex2.fillStyle='#f8f4ec'; ex2.fillRect(0,0,cW,cH);
+  ex2.fillStyle='#ffffff'; ex2.fillRect(0,0,cW,cH);
   var cnt2 = new Array(palette.length).fill(0);
-  for (var r=0;r<ROWS;r++) for (var c=0;c<COLS;c++) {
-    var ci=grid[r][c]; var px2=ox+c*sz, py2=oy+r*sz;
-    if (ci>=0) {
-      cnt2[ci]++;
-      ex2.fillStyle=palette[ci]; ex2.fillRect(px2,py2,sz,sz);
-      var rgb=h2r(palette[ci]),lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
-      ex2.fillStyle=lum>140?'rgba(0,0,0,.7)':'rgba(255,255,255,.85)';
-      ex2.font=(sz-1)+'px "Segoe UI Symbol",Arial,sans-serif';
-      ex2.textAlign='center'; ex2.textBaseline='middle';
-      ex2.fillText(getSym(ci),px2+sz/2,py2+sz/2);
+  for (var r=0;r<ROWS;r++) {
+    for (var c=0;c<COLS;c++) {
+      var ci=grid[r][c];
+      var px2=ox+c*sz*DPR, py2=oy+r*sz*DPR;
+      if (ci>=0) {
+        cnt2[ci]++;
+        ex2.fillStyle=palette[ci]; ex2.fillRect(px2,py2,sz*DPR,sz*DPR);
+        var rgb=h2r(palette[ci]),lum=rgb?0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2]:128;
+        ex2.fillStyle=lum>140?'rgba(0,0,0,.88)':'rgba(255,255,255,.95)';
+        ex2.font='bold '+(sz*DPR-4)+'px "Segoe UI Symbol","Apple Symbols",Arial,sans-serif';
+        ex2.textAlign='center'; ex2.textBaseline='middle';
+        ex2.fillText(getSym(ci),px2+sz*DPR/2,py2+sz*DPR/2);
+      }
+      ex2.strokeStyle='rgba(0,0,0,.12)'; ex2.lineWidth=0.5*DPR;
+      ex2.strokeRect(px2,py2,sz*DPR,sz*DPR);
     }
-    ex2.strokeStyle='rgba(0,0,0,.1)'; ex2.lineWidth=0.3; ex2.strokeRect(px2,py2,sz,sz);
   }
-  ex2.strokeStyle='rgba(0,0,0,.4)'; ex2.lineWidth=0.8;
-  for (var r2=0;r2<=ROWS;r2+=10){ex2.beginPath();ex2.moveTo(ox,oy+r2*sz);ex2.lineTo(ox+COLS*sz,oy+r2*sz);ex2.stroke();}
-  for (var c2=0;c2<=COLS;c2+=10){ex2.beginPath();ex2.moveTo(ox+c2*sz,oy);ex2.lineTo(ox+c2*sz,oy+ROWS*sz);ex2.stroke();}
-  ex2.fillStyle='#888'; ex2.font='7px sans-serif'; ex2.textAlign='center'; ex2.textBaseline='middle';
-  for (var c3=0;c3<=COLS;c3+=10){ex2.fillText(c3,ox+c3*sz,oy-6);}
+  ex2.strokeStyle='rgba(0,0,0,.5)'; ex2.lineWidth=1.0*DPR;
+  for(var r2=0;r2<=ROWS;r2+=10){ex2.beginPath();ex2.moveTo(ox,oy+r2*sz*DPR);ex2.lineTo(ox+COLS*sz*DPR,oy+r2*sz*DPR);ex2.stroke();}
+  for(var c2=0;c2<=COLS;c2+=10){ex2.beginPath();ex2.moveTo(ox+c2*sz*DPR,oy);ex2.lineTo(ox+c2*sz*DPR,oy+ROWS*sz*DPR);ex2.stroke();}
+  ex2.strokeStyle='rgba(0,0,0,.7)'; ex2.lineWidth=1.5*DPR;
+  ex2.strokeRect(ox,oy,COLS*sz*DPR,ROWS*sz*DPR);
+  ex2.fillStyle='#666'; ex2.font='bold '+(8*DPR)+'px sans-serif';
+  ex2.textAlign='center'; ex2.textBaseline='middle';
+  for(var c3=0;c3<=COLS;c3+=10){ex2.fillText(c3,ox+c3*sz*DPR,oy-7*DPR);}
   ex2.textAlign='right';
-  for (var r3=0;r3<=ROWS;r3+=10){ex2.fillText(r3,ox-3,oy+r3*sz);}
+  for(var r3=0;r3<=ROWS;r3+=10){ex2.fillText(r3,ox-3*DPR,oy+r3*sz*DPR);}
 
-  var maxW=pageW-20, maxH=pageH-100;
-  var scale=Math.min(maxW/(cW*0.265),maxH/(cH*0.265));
-  var dw=cW*0.265*scale, dh=cH*0.265*scale;
-  pdf.addImage(ec2.toDataURL('image/png'),'PNG',(pageW-dw)/2,45,dw,dh);
+  var logW=cW/DPR*0.265, logH=cH/DPR*0.265;
+  var maxW=pageW-16, maxH=pageH-100;
+  var scale=Math.min(maxW/logW, maxH/logH);
+  var dw=logW*scale, dh=logH*scale;
+  pdf.addImage(ec2.toDataURL('image/png'),'PNG',(pageW-dw)/2,43,dw,dh);
 
-  // Symbol legend at bottom
-  var lY = 45+dh+6;
+  // Symbol legend
+  var lY = 43+dh+6;
   pdf.setTextColor(30,30,30); pdf.setFontSize(8); pdf.setFont('helvetica','bold');
   pdf.text('Symbol Legend', 12, lY+5);
+  lY += 10;
   var used2 = palette.map(function(h,i){return{h:h,n:cnt2[i],i:i};}).filter(function(x){return x.n>0;}).sort(function(a,b){return b.n-a.n;});
-  var total2 = used2.reduce(function(s,x){return s+x.n;},0);
-  var cols3 = 3, colW2 = (pageW-24)/cols3;
-  used2.forEach(function(x,idx) {
-    var d=nearDMC(x.h), col3=idx%cols3, row3=Math.floor(idx/cols3);
-    var lx2=12+col3*colW2, ly2=lY+10+row3*9;
+  var cols3=3, colW2=(pageW-24)/cols3;
+  used2.forEach(function(x,idx2) {
+    var d=nearDMC(x.h), col3=idx2%cols3, row3=Math.floor(idx2/cols3);
+    var lx2=12+col3*colW2, ly2=lY+row3*9;
     var rgb=h2r(d.hex)||[128,128,128];
     pdf.setFillColor(rgb[0],rgb[1],rgb[2]); pdf.rect(lx2,ly2,7,7,'F');
     pdf.setDrawColor(180,180,180); pdf.setLineWidth(0.2); pdf.rect(lx2,ly2,7,7,'S');
-    var sc3=document.createElement('canvas'); sc3.width=14; sc3.height=14;
+    var sc3=document.createElement('canvas'); sc3.width=40; sc3.height=40;
     var sx3=sc3.getContext('2d');
     var lum3=0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2];
-    sx3.fillStyle=lum3>140?'#000':'#fff';
-    sx3.font='10px "Segoe UI Symbol",Arial,sans-serif'; sx3.textAlign='center'; sx3.textBaseline='middle';
-    sx3.fillText(getSym(x.i),7,7);
+    sx3.fillStyle=lum3>140?'rgba(0,0,0,.9)':'rgba(255,255,255,.95)';
+    sx3.font='bold 28px "Segoe UI Symbol","Apple Symbols",Arial,sans-serif';
+    sx3.textAlign='center'; sx3.textBaseline='middle';
+    sx3.fillText(getSym(x.i),20,21);
     pdf.addImage(sc3.toDataURL(),'PNG',lx2,ly2,7,7);
     pdf.setTextColor(50,50,50); pdf.setFontSize(7); pdf.setFont('helvetica','normal');
     pdf.text('DMC '+d.num+' '+d.name.substring(0,16)+' ('+x.n+')', lx2+9, ly2+5);
@@ -1629,6 +1618,7 @@ function buildPatternKeeperPDF() {
   pdf.text(COLS+' x '+ROWS+' | '+palette.length+' colors', pageW/2, pageH-8, {align:'center'});
   return pdf;
 }
+
 
 // Main export function — triggers all 8 PDFs sequentially
 function exportAllPDF() {
@@ -1712,12 +1702,13 @@ function buildFossListPDF() {
     var rgb=h2r(d.hex)||[128,128,128];
     pdf.setFillColor(rgb[0],rgb[1],rgb[2]); pdf.rect(cx[1],ry,8,8,'F');
     pdf.setDrawColor(160,160,160); pdf.setLineWidth(0.2); pdf.rect(cx[1],ry,8,8,'S');
-    var sc4=document.createElement('canvas'); sc4.width=16; sc4.height=16;
+    var sc4=document.createElement('canvas'); sc4.width=40; sc4.height=40;
     var sx4=sc4.getContext('2d');
     var lum4=0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2];
-    sx4.fillStyle=lum4>140?'#000':'#fff';
-    sx4.font='11px "Segoe UI Symbol",Arial,sans-serif'; sx4.textAlign='center'; sx4.textBaseline='middle';
-    sx4.fillText(getSym(x.i),8,9);
+    sx4.fillStyle=lum4>140?'rgba(0,0,0,.9)':'rgba(255,255,255,.95)';
+    sx4.font='bold 28px "Segoe UI Symbol","Apple Symbols",Arial,sans-serif';
+    sx4.textAlign='center'; sx4.textBaseline='middle';
+    sx4.fillText(getSym(x.i),20,21);
     pdf.addImage(sc4.toDataURL(),'PNG',cx[1],ry,8,8);
     pdf.setTextColor(30,30,30); pdf.text('DMC '+d.num, cx[2], ry+6);
     pdf.setTextColor(80,80,80); pdf.text(d.name.substring(0,28), cx[3], ry+6);
